@@ -6,7 +6,6 @@ use Tevkert\QueuePrefork\Preflight;
 use Tevkert\QueuePrefork\Runtime;
 use Tevkert\QueuePrefork\Support\Audit;
 use Tevkert\QueuePrefork\Support\Channel;
-use Tevkert\QueuePrefork\Support\CommandLine;
 use Tevkert\QueuePrefork\Support\Fd;
 use Tevkert\QueuePrefork\Support\Identity;
 use Tevkert\QueuePrefork\Support\Native;
@@ -165,16 +164,7 @@ final class WorkServer
         Runtime::$runtimeDir = $this->runtime;
         Runtime::$config = ['exit_grace' => 15];
 
-        // Load every class now: the release this template was started from may be pruned while it drains.
-        $classes = [
-            Audit::class, Channel::class, CommandLine::class, Fd::class, Identity::class, Native::class, RuntimeDir::class,
-            TemplateKey::class, ChildRoutine::class, ChildJob::class, RoleGuard::class, Signals::class, Opcache::class,
-            Preflight::class, WorkerContext::class, SharedLog::class, Process::class,
-        ];
-
-        foreach ($classes as $class) {
-            class_exists($class);
-        }
+        Runtime::preload(); // the release this template was started from may be pruned while it drains
         @cli_set_process_title("php [qp-template:{$this->key16}]");
 
         if ($this->runtime === '' || $this->key16 === '' || $this->release === '') {

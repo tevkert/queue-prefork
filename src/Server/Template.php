@@ -71,6 +71,7 @@ final class Template
         try {
             Runtime::$role = 'template';
             RoleGuard::install();
+            Runtime::preload(); // what it forks inherits them: the master, fork servers, loops and workers
 
             if (getenv('QP_SERVER') === 'master') {
                 return $job = self::host();

@@ -76,6 +76,8 @@ final class Master
 
     public function start(?callable $warn = null): bool
     {
+        Runtime::preload();
+
         try {
             $reasons = Preflight::check($this->app);
 

@@ -115,9 +115,9 @@ class StatusCommand extends Command
         $rows = [];
 
         foreach (glob('/proc/[0-9]*') ?: [] as $dir) {
-            $cmd = str_replace("\0", ' ', (string) @file_get_contents($dir.'/cmdline'));
+            $role = self::roleOf(str_replace("\0", ' ', (string) @file_get_contents($dir.'/cmdline')));
 
-            if (! preg_match('#horizon|[hq]p-template|queue:work|^/bin/sh \S+/stub-[0-9a-f]+\.sh #', $cmd) || str_contains($cmd, 'prefork-status')) {
+            if ($role === null) {
                 continue;
             }
 
@@ -127,14 +127,6 @@ class StatusCommand extends Command
                 continue;
             }
 
-            $role = match (true) {
-                (bool) preg_match('/[hq]p-template/', $cmd) => 'template',
-                str_starts_with($cmd, '/bin/sh ') => 'stub',
-                str_contains($cmd, '[fork-server]') => 'fork-server',
-                str_contains($cmd, 'horizon:supervisor') => 'supervisor',
-                str_contains($cmd, 'horizon:work'), str_contains($cmd, 'queue:work') => 'worker',
-                default => 'master',
-            };
             $smaps = (string) @file_get_contents($dir.'/smaps_rollup');
             $kb = fn (string $key) => preg_match("/^{$key}:\s+(\d+)/m", $smaps, $m) ? (int) $m[1] : 0;
             $stat = (string) @file_get_contents($dir.'/stat');
@@ -150,5 +142,31 @@ class StatusCommand extends Command
         }
 
         return $rows;
+    }
+
+    /**
+     * A process's role in a worker tree, prefork or stock, from its command line: a template or stub by
+     * its own title or script, the rest as `php [options] <entry> <command>`. Null for anything else,
+     * such as tinker, `horizon:status` or the scheduler's `horizon:snapshot`.
+     */
+    public static function roleOf(string $cmd): ?string
+    {
+        if (preg_match('#^\S*php\S* \[[hq]p-template:#', $cmd)) {
+            return 'template';
+        }
+
+        if (preg_match('#^/bin/sh \S+/stub-[0-9a-f]+\.sh #', $cmd)) {
+            return 'stub';
+        }
+
+        if (! preg_match('#^\S*php\S*(?: -[dc] ?\S+| -[a-zA-Z]+)* \S+ (horizon|horizon:supervisor|horizon:work|queue:work)(?: |$)#', $cmd, $m)) {
+            return null;
+        }
+
+        return match ($m[1]) {
+            'horizon' => 'master',
+            'horizon:supervisor' => str_contains($cmd, '[fork-server]') ? 'fork-server' : 'supervisor',
+            default => 'worker',
+        };
     }
 }

@@ -13,6 +13,19 @@ final class Runtime
     /** Bumped whenever the template/fork-server/child protocol changes (checked by children). */
     public const PROTOCOL = 2;
 
+    /** The package's classes that don't extend the framework's: what preload() loads. */
+    public const CLASSES = [
+        Client\Broker::class, Client\Direct::class, Client\Report::class, Handoff::class, Link::class, Master::class,
+        MasterHandoff::class, Preflight::class, QueueWorkerLink::class, Runtime::class, Settings::class, Wiring::class,
+        WorkerLink::class, Server\ChildJob::class, Server\ChildRoutine::class, Server\Opcache::class, Server\RoleGuard::class,
+        Server\SharedLog::class, Server\Signals::class, Server\Template::class, Server\UnitServer::class,
+        Server\WorkServer::class, Server\WorkerContext::class, Support\Audit::class, Support\Channel::class,
+        Support\CommandLine::class, Support\DotEnv::class, Support\EarlyConfig::class, Support\Fd::class,
+        Support\Identity::class, Support\LogTargets::class, Support\Native::class, Support\Process::class,
+        Support\RuntimeDir::class, Support\StatusFiles::class, Support\Switches::class, Support\TemplateKey::class,
+        Support\WorkTemplates::class,
+    ];
+
     /** template | fork-server | unit-loop | worker | horizon-master, or null in an ordinary process. */
     public static ?string $role = null;
 
@@ -81,5 +94,17 @@ final class Runtime
     public static function config(string $key, mixed $default = null): mixed
     {
         return self::$config[$key] ?? $default;
+    }
+
+    /**
+     * Loads the package's classes now. A deploy can replace or delete their files while a template or the
+     * Horizon master still runs, and a class first needed at shutdown would then come from another version,
+     * or fail to load and keep the process from exiting.
+     */
+    public static function preload(): void
+    {
+        foreach (self::CLASSES as $class) {
+            class_exists($class);
+        }
     }
 }
