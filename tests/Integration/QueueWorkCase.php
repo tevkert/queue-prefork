@@ -46,6 +46,22 @@ abstract class QueueWorkCase extends IntegrationCase
         }
     }
 
+    /**
+     * Replaces every worker in both stacks and waits for the new ones. A worker keeps what its jobs did to
+     * it: the fork driver's `Concurrency::run` (spatie/fork) leaves TERM handlers that SIGKILL the worker, so
+     * a test of how workers stop starts from fresh ones, whatever ran before it.
+     */
+    protected function freshWorkers(): void
+    {
+        $before = [self::STOCK => self::workers(self::STOCK), self::PREFORK => self::workers(self::PREFORK)];
+        self::both(fn ($c) => self::artisan($c, 'queue:restart'));
+        self::waitBoth(fn ($c) => self::gone($c, $before[$c]) && self::shapeProblem($c) === null, 60, 'fresh workers');
+
+        foreach (self::BOTH as $container) {
+            $this->exitMark[$container] = count(self::exits($container));
+        }
+    }
+
     protected static function programCount(string $container): int
     {
         return (int) preg_match_all('/^queue-work:/m', self::supervisorctl($container, "status 'queue-work:*'"));

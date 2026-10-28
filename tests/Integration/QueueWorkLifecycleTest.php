@@ -15,6 +15,12 @@ class QueueWorkLifecycleTest extends QueueWorkCase
     /** retry_after plus a margin for a worker to pick the expired job up. */
     private const RETRY_WAIT = 240;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->freshWorkers();
+    }
+
     public function test_killing_a_worker_or_its_program_mid_job_fails_the_job_as_in_stock(): void
     {
         self::startSleepers(120, steady: true);
