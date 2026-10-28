@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] - 2026-10-29
+
+- **The fallback reason:** a template that turns a worker away before reading its request (out of descriptors, or retiring during a deploy) closes the connection at once, so the request can fail to send. The stub now reads the template's reply and reports its reason instead of "send to the template failed". The worker falls back to stock as before.
+- **Tests:** the `queue:work` lifecycle tests start from fresh workers in both Docker stacks. A worker that had run `Concurrency::run` on the fork driver could SIGKILL itself at a supervisord reload, which made one test fail now and then.
+
 ## [1.0.2] - 2026-10-28
 
 - **`queue-prefork:status`** counts only the worker trees' own processes. Any other process in the app's folder whose command line mentioned Horizon or a template (the scheduler's `horizon:snapshot`, `horizon:status`, a tinker session) showed up as a master or a template, with its memory in the total.
@@ -22,6 +27,7 @@ First release: Laravel queue workers run as forks of a template process that sha
 - **Commands:** `queue-prefork:doctor`, `queue-prefork:status`, `queue-prefork:switch` and `queue-prefork:retire`.
 - Developed as `horizon-prefork` before the first release, which only covered Horizon.
 
+[1.0.3]: https://github.com/tevkert/queue-prefork/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/tevkert/queue-prefork/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/tevkert/queue-prefork/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/tevkert/queue-prefork/releases/tag/v1.0.0
