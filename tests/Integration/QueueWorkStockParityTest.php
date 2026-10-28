@@ -19,7 +19,7 @@ class QueueWorkStockParityTest extends QueueWorkCase
         }
 
         $comparable = fn (array $value) => array_diff_key($value, array_flip([
-            'pid', 'ppid', 'autoload_pid', 'request_time_float', 'laravel_start', 'title', 'opcache_enabled',
+            'pid', 'ppid', 'autoload_pid', 'request_time_float', 'laravel_start', 'title', 'opcache_enabled', 'queue_prefork_env',
         ]));
 
         $this->assertSame($comparable($seen[self::STOCK]), $comparable($seen[self::PREFORK]));
