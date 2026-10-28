@@ -1,0 +1,10 @@
+[Unit]
+Description=queue-prefork systemd gate: a worker that crashes only when forked (default start limits)
+
+[Service]
+User=forge
+WorkingDirectory=/repo
+Environment=FIXTURE_CRASH=1
+ExecStart=/usr/local/bin/php /repo/tests/Fixtures/queue-app/artisan queue:work --name=crash
+Restart=always
+RestartSec=1

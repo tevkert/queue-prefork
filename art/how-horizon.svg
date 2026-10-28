@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="692" viewBox="0 0 960 692" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif">
+<title id="t">How queue-prefork works with Horizon, next to stock Horizon</title>
+<desc id="d">Left, stock Horizon: the master, each supervisor and each worker boots Laravel and holds its own copy of the compiled app code; a worker uses about 63 MB and all Horizon processes 1,279 MB. Right, queue-prefork: the process the supervisor started becomes a template that holds the compiled code once, 71 MB in shared memory. The master, the fork servers, the supervisors and the workers are its forks and carry only their own data: about 21 MB for the master, 5.2 MB per supervisor and 6.6 MB per worker, 240 MB in all, with more workers running. A new worker is ready in about 1.1 seconds in stock Horizon and 0.19 seconds with queue-prefork.</desc>
+<style>.bar{transform-box:fill-box;transform-origin:left center}[class^="tot"]{transform-box:fill-box;transform-origin:left center}@keyframes r0_0{0%,2.94%{opacity:0}4.12%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r0_0b{0%,2.94%{transform:scaleX(0)}5.29%,100%{transform:scaleX(1)}}.r0_0{animation:r0_0 17.0s linear infinite}.r0_0 .bar{animation:r0_0b 17.0s linear infinite}@keyframes r0_1{0%,5.29%{opacity:0}6.47%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r0_1b{0%,5.29%{transform:scaleX(0)}7.65%,100%{transform:scaleX(1)}}.r0_1{animation:r0_1 17.0s linear infinite}.r0_1 .bar{animation:r0_1b 17.0s linear infinite}@keyframes r0_2{0%,7.65%{opacity:0}8.82%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r0_2b{0%,7.65%{transform:scaleX(0)}18.0%,100%{transform:scaleX(1)}}.r0_2{animation:r0_2 17.0s linear infinite}.r0_2 .bar{animation:r0_2b 17.0s linear infinite}@keyframes r0_3{0%,18.0%{opacity:0}19.18%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r0_3b{0%,18.0%{transform:scaleX(0)}28.35%,100%{transform:scaleX(1)}}.r0_3{animation:r0_3 17.0s linear infinite}.r0_3 .bar{animation:r0_3b 17.0s linear infinite}@keyframes r0_4{0%,28.35%{opacity:0}29.53%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r0_4b{0%,28.35%{transform:scaleX(0)}30.71%,100%{transform:scaleX(1)}}.r0_4{animation:r0_4 17.0s linear infinite}.r0_4 .bar{animation:r0_4b 17.0s linear infinite}@keyframes r0_5{0%,30.71%{opacity:0}31.88%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r0_5b{0%,30.71%{transform:scaleX(0)}41.06%,100%{transform:scaleX(1)}}.r0_5{animation:r0_5 17.0s linear infinite}.r0_5 .bar{animation:r0_5b 17.0s linear infinite}@keyframes r0_6{0%,41.06%{opacity:0}42.24%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r0_6b{0%,41.06%{transform:scaleX(0)}51.41%,100%{transform:scaleX(1)}}.r0_6{animation:r0_6 17.0s linear infinite}.r0_6 .bar{animation:r0_6b 17.0s linear infinite}@keyframes r0_7{0%,51.41%{opacity:0}52.59%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r0_7b{0%,51.41%{transform:scaleX(0)}53.76%,100%{transform:scaleX(1)}}.r0_7{animation:r0_7 17.0s linear infinite}.r0_7 .bar{animation:r0_7b 17.0s linear infinite}@keyframes tot0{0%{transform:scaleX(0)}2.35%{transform:scaleX(0)}5.29%{transform:scaleX(0.0454)}7.65%{transform:scaleX(0.0893)}18.0%{transform:scaleX(0.1387)}28.35%{transform:scaleX(0.1881)}30.71%{transform:scaleX(0.2319)}41.06%{transform:scaleX(0.2813)}51.41%{transform:scaleX(0.3307)}53.76%{transform:scaleX(1.0)}90%{transform:scaleX(1)}95%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}.tot0{animation:tot0 17.0s linear infinite}@keyframes tv0{0%,55.53%{opacity:0}57.88%,90%{opacity:1}95%,100%{opacity:0}}.tv0{animation:tv0 17.0s linear infinite}@keyframes r1_0{0%,2.94%{opacity:0}4.12%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r1_0b{0%,2.94%{transform:scaleX(0)}3.82%,100%{transform:scaleX(1)}}.r1_0{animation:r1_0 17.0s linear infinite}.r1_0 .bar{animation:r1_0b 17.0s linear infinite}@keyframes r1_1{0%,3.82%{opacity:0}5.0%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r1_1b{0%,3.82%{transform:scaleX(0)}6.18%,100%{transform:scaleX(1)}}.r1_1{animation:r1_1 17.0s linear infinite}.r1_1 .bar{animation:r1_1b 17.0s linear infinite}@keyframes r1_2{0%,6.18%{opacity:0}7.35%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r1_2b{0%,6.18%{transform:scaleX(0)}7.06%,100%{transform:scaleX(1)}}.r1_2{animation:r1_2 17.0s linear infinite}.r1_2 .bar{animation:r1_2b 17.0s linear infinite}@keyframes r1_3{0%,7.06%{opacity:0}8.24%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r1_3b{0%,7.06%{transform:scaleX(0)}9.41%,100%{transform:scaleX(1)}}.r1_3{animation:r1_3 17.0s linear infinite}.r1_3 .bar{animation:r1_3b 17.0s linear infinite}@keyframes r1_4{0%,9.41%{opacity:0}10.59%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r1_4b{0%,9.41%{transform:scaleX(0)}11.2%,100%{transform:scaleX(1)}}.r1_4{animation:r1_4 17.0s linear infinite}.r1_4 .bar{animation:r1_4b 17.0s linear infinite}@keyframes r1_5{0%,11.2%{opacity:0}12.38%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r1_5b{0%,11.2%{transform:scaleX(0)}12.99%,100%{transform:scaleX(1)}}.r1_5{animation:r1_5 17.0s linear infinite}.r1_5 .bar{animation:r1_5b 17.0s linear infinite}@keyframes r1_6{0%,12.99%{opacity:0}14.16%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r1_6b{0%,12.99%{transform:scaleX(0)}13.87%,100%{transform:scaleX(1)}}.r1_6{animation:r1_6 17.0s linear infinite}.r1_6 .bar{animation:r1_6b 17.0s linear infinite}@keyframes r1_7{0%,13.87%{opacity:0}15.05%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r1_7b{0%,13.87%{transform:scaleX(0)}16.22%,100%{transform:scaleX(1)}}.r1_7{animation:r1_7 17.0s linear infinite}.r1_7 .bar{animation:r1_7b 17.0s linear infinite}@keyframes r1_8{0%,16.22%{opacity:0}17.4%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r1_8b{0%,16.22%{transform:scaleX(0)}18.01%,100%{transform:scaleX(1)}}.r1_8{animation:r1_8 17.0s linear infinite}.r1_8 .bar{animation:r1_8b 17.0s linear infinite}@keyframes r1_9{0%,18.01%{opacity:0}19.19%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r1_9b{0%,18.01%{transform:scaleX(0)}19.8%,100%{transform:scaleX(1)}}.r1_9{animation:r1_9 17.0s linear infinite}.r1_9 .bar{animation:r1_9b 17.0s linear infinite}@keyframes r1_10{0%,19.8%{opacity:0}20.98%,90%{opacity:1}95%,100%{opacity:0}}@keyframes r1_10b{0%,19.8%{transform:scaleX(0)}22.15%,100%{transform:scaleX(1)}}.r1_10{animation:r1_10 17.0s linear infinite}.r1_10 .bar{animation:r1_10b 17.0s linear infinite}@keyframes link1{0%,3.82%{opacity:0}5.88%,90%{opacity:1}95%,100%{opacity:0}}.link1{animation:link1 17.0s linear infinite}@keyframes tot1{0%{transform:scaleX(0)}2.35%{transform:scaleX(0)}3.82%{transform:scaleX(0.2968)}6.18%{transform:scaleX(0.3859)}7.06%{transform:scaleX(0.3886)}9.41%{transform:scaleX(0.4104)}11.2%{transform:scaleX(0.4379)}12.99%{transform:scaleX(0.4654)}13.87%{transform:scaleX(0.4681)}16.22%{transform:scaleX(0.4898)}18.01%{transform:scaleX(0.5173)}19.8%{transform:scaleX(0.5448)}22.15%{transform:scaleX(1.0)}90%{transform:scaleX(1)}95%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}.tot1{animation:tot1 17.0s linear infinite}@keyframes tv1{0%,23.92%{opacity:0}26.27%,90%{opacity:1}95%,100%{opacity:0}}.tv1{animation:tv1 17.0s linear infinite}@media (prefers-reduced-motion:reduce){*{animation:none!important}}</style>
+<rect x="0.5" y="0.5" width="959" height="691" rx="16" fill="#171528" stroke="#39345a"/>
+<text x="24" y="50" font-size="26" font-weight="700" fill="#f0f6fc">Laravel Horizon performance</text>
+<rect x="24" y="76" width="444" height="548" rx="12" fill="#1f1c35"/>
+<text x="48" y="116" font-size="20" font-weight="700" fill="#f0f6fc">Stock Horizon</text>
+<text x="444" y="116" font-size="13" text-anchor="end" fill="#8b949e">new worker ready in <tspan font-weight="700" fill="#c9d1d9">1.1 s</tspan></text>
+<text x="48" y="140" font-size="13" fill="#8b949e">Every process boots Laravel and compiles</text>
+<text x="48" y="158" font-size="13" fill="#8b949e">the whole app into its own memory.</text>
+<g class="r0_0">
+<text x="48" y="196.5" font-size="13" fill="#c9d1d9">horizon (master)</text>
+<g class="bar">
+<rect x="200" y="184" width="114.5" height="16" rx="3" fill="#d95926"/>
+<rect x="316.5" y="184" width="11.3" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="335.8" y="196.5" font-size="12" fill="#8b949e">58 MB</text>
+</g>
+<g class="r0_1">
+<path d="M53 208 V222 H59" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="62" y="226.5" font-size="13" fill="#c9d1d9">supervisor</text>
+<g class="bar">
+<rect x="200" y="214" width="110.5" height="16" rx="3" fill="#d95926"/>
+<rect x="312.5" y="214" width="10.9" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="331.4" y="226.5" font-size="12" fill="#8b949e">56 MB</text>
+</g>
+<g class="r0_2">
+<path d="M67 238 V252 H73" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="76" y="256.5" font-size="13" fill="#c9d1d9">worker</text>
+<g class="bar">
+<rect x="200" y="244" width="124.5" height="16" rx="3" fill="#d95926"/>
+<rect x="326.5" y="244" width="12.5" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="347.0" y="256.5" font-size="12" fill="#8b949e">63 MB</text>
+</g>
+<g class="r0_3">
+<path d="M67 268 V282 H73" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="76" y="286.5" font-size="13" fill="#c9d1d9">worker</text>
+<g class="bar">
+<rect x="200" y="274" width="124.5" height="16" rx="3" fill="#d95926"/>
+<rect x="326.5" y="274" width="12.5" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="347.0" y="286.5" font-size="12" fill="#8b949e">63 MB</text>
+</g>
+<g class="r0_4">
+<path d="M53 298 V312 H59" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="62" y="316.5" font-size="13" fill="#c9d1d9">supervisor</text>
+<g class="bar">
+<rect x="200" y="304" width="110.5" height="16" rx="3" fill="#d95926"/>
+<rect x="312.5" y="304" width="10.9" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="331.4" y="316.5" font-size="12" fill="#8b949e">56 MB</text>
+</g>
+<g class="r0_5">
+<path d="M67 328 V342 H73" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="76" y="346.5" font-size="13" fill="#c9d1d9">worker</text>
+<g class="bar">
+<rect x="200" y="334" width="124.5" height="16" rx="3" fill="#d95926"/>
+<rect x="326.5" y="334" width="12.5" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="347.0" y="346.5" font-size="12" fill="#8b949e">63 MB</text>
+</g>
+<g class="r0_6">
+<path d="M67 358 V372 H73" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="76" y="376.5" font-size="13" fill="#c9d1d9">worker</text>
+<g class="bar">
+<rect x="200" y="364" width="124.5" height="16" rx="3" fill="#d95926"/>
+<rect x="326.5" y="364" width="12.5" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="347.0" y="376.5" font-size="12" fill="#8b949e">63 MB</text>
+</g>
+<g class="r0_7">
+<path d="M53 388 V402 H59" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="62" y="406.5" font-size="13" fill="#8b949e">+ 4 more supervisors and 10 more workers: <tspan fill="#c9d1d9">856 MB</tspan></text>
+</g>
+<line x1="48" x2="444" y1="552" y2="552" stroke="#39345a"/>
+<text x="48" y="576" font-size="13" font-weight="600" fill="#f0f6fc">All Horizon processes</text>
+<text x="202" y="576" font-size="12" fill="#8b949e">6 supervisors, 14 workers</text>
+<g class="tot0"><rect x="48" y="588" width="223.9" height="20" rx="4" fill="#6e7681"/></g>
+<g class="tv0"><text x="281.9" y="604" font-size="18" font-weight="700" fill="#f0f6fc">1,279 MB</text></g>
+<rect x="492" y="76" width="444" height="548" rx="12" fill="#1f1c35"/>
+<text x="516" y="116" font-size="20" font-weight="700" fill="#f0f6fc">With queue-prefork</text>
+<text x="912" y="116" font-size="13" text-anchor="end" fill="#8b949e">new worker ready in <tspan font-weight="700" fill="#3fb950">0.19 s</tspan></text>
+<text x="516" y="140" font-size="13" fill="#8b949e">Compiled code lives once, in shared memory.</text>
+<text x="516" y="158" font-size="13" fill="#8b949e">Every process, the master too, is a slim fork.</text>
+<g class="r1_0">
+<text x="516" y="196.5" font-size="13" font-weight="600" fill="#c9d1d9">template</text>
+<g class="bar">
+<rect x="668" y="184" width="156.9" height="16" rx="3" fill="#d95926"/>
+</g>
+<text x="832.9" y="196.5" font-size="12" fill="#f0f6fc">71 MB shared</text>
+</g>
+<g class="r1_1">
+<path d="M521 208 V222 H527" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="530" y="226.5" font-size="13" fill="#c9d1d9">horizon (master)</text>
+<g class="bar">
+<rect x="668" y="214" width="47.1" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="723.1" y="226.5" font-size="12" fill="#8b949e">21 MB</text>
+</g>
+<g class="r1_2">
+<path d="M521 238 V252 H527" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="530" y="256.5" font-size="13" fill="#c9d1d9">fork server</text>
+<g class="bar">
+<rect x="668" y="244" width="3.0" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="679.0" y="256.5" font-size="12" fill="#8b949e">0.7 MB</text>
+</g>
+<g class="r1_3">
+<path d="M535 268 V282 H541" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="544" y="286.5" font-size="13" fill="#c9d1d9">supervisor</text>
+<g class="bar">
+<rect x="668" y="274" width="11.5" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="687.5" y="286.5" font-size="12" fill="#8b949e">5.2 MB</text>
+</g>
+<g class="r1_4">
+<path d="M535 298 V312 H541" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="544" y="316.5" font-size="13" fill="#c9d1d9">worker</text>
+<g class="bar">
+<rect x="668" y="304" width="14.5" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="690.5" y="316.5" font-size="12" fill="#8b949e">6.6 MB</text>
+</g>
+<g class="r1_5">
+<path d="M535 328 V342 H541" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="544" y="346.5" font-size="13" fill="#c9d1d9">worker</text>
+<g class="bar">
+<rect x="668" y="334" width="14.5" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="690.5" y="346.5" font-size="12" fill="#8b949e">6.6 MB</text>
+</g>
+<g class="r1_6">
+<path d="M521 358 V372 H527" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="530" y="376.5" font-size="13" fill="#c9d1d9">fork server</text>
+<g class="bar">
+<rect x="668" y="364" width="3.0" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="679.0" y="376.5" font-size="12" fill="#8b949e">0.7 MB</text>
+</g>
+<g class="r1_7">
+<path d="M535 388 V402 H541" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="544" y="406.5" font-size="13" fill="#c9d1d9">supervisor</text>
+<g class="bar">
+<rect x="668" y="394" width="11.5" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="687.5" y="406.5" font-size="12" fill="#8b949e">5.2 MB</text>
+</g>
+<g class="r1_8">
+<path d="M535 418 V432 H541" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="544" y="436.5" font-size="13" fill="#c9d1d9">worker</text>
+<g class="bar">
+<rect x="668" y="424" width="14.5" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="690.5" y="436.5" font-size="12" fill="#8b949e">6.6 MB</text>
+</g>
+<g class="r1_9">
+<path d="M535 448 V462 H541" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="544" y="466.5" font-size="13" fill="#c9d1d9">worker</text>
+<g class="bar">
+<rect x="668" y="454" width="14.5" height="16" rx="3" fill="#3987e5"/>
+</g>
+<text x="690.5" y="466.5" font-size="12" fill="#8b949e">6.6 MB</text>
+</g>
+<g class="r1_10">
+<path d="M521 478 V492 H527" fill="none" stroke="#39345a" stroke-width="1.5"/>
+<text x="530" y="496.5" font-size="13" fill="#8b949e">+ 4 more supervisors and 13 more workers: <tspan fill="#c9d1d9">109 MB</tspan></text>
+</g>
+<g class="link1"><path d="M660 201 V462" stroke="#d95926" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round" fill="none"/></g>
+<line x1="516" x2="912" y1="552" y2="552" stroke="#39345a"/>
+<text x="516" y="576" font-size="13" font-weight="600" fill="#f0f6fc">All Horizon processes</text>
+<text x="670" y="576" font-size="12" fill="#8b949e">6 supervisors, 17 workers</text>
+<g class="tot1"><rect x="516" y="588" width="42.0" height="20" rx="4" fill="#6e7681"/></g>
+<g class="tv1"><text x="568.0" y="604" font-size="18" font-weight="700" fill="#f0f6fc">240 MB  (−81 %)</text></g>
+<rect x="24" y="641" width="14" height="14" rx="3" fill="#d95926"/>
+<text x="46" y="652" font-size="13" fill="#c9d1d9">compiled app code</text>
+<rect x="196" y="641" width="14" height="14" rx="3" fill="#3987e5"/>
+<text x="218" y="652" font-size="13" fill="#c9d1d9">the process’s own memory</text>
+<text x="936" y="652" font-size="12" text-anchor="end" fill="#8b949e">Bar length is memory, typical jobs · shared code counted once, in the template</text>
+</svg>

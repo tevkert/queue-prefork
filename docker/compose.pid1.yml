@@ -1,0 +1,8 @@
+# Variant: no tini and no supervisord; Horizon's master runs as PID 1 (the package's
+# preflight must refuse prefork there). docker compose -f compose.yml -f compose.pid1.yml up -d
+services:
+  app-stock: &pid1
+    entrypoint: ["/repo/docker/php/entrypoint.sh"]
+    environment:
+      SUPERVISE: "false"
+  app-prefork: *pid1

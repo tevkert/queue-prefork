@@ -1,0 +1,9 @@
+[Unit]
+Description=queue-prefork systemd gate: three workers in one unit
+
+[Service]
+User=forge
+WorkingDirectory=/repo
+Environment=FIXTURE_DRAIN=0.3 FIXTURE_TERM_EXIT=7
+ExecStart=/bin/sh -c 'for i in 1 2 3; do /usr/local/bin/php /repo/tests/Fixtures/queue-app/artisan queue:work --name=m$i & done; wait'
+TimeoutStopSec=10

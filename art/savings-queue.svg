@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="368" viewBox="0 0 960 368" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif">
+<title id="t">queue-prefork with queue:work: memory savings</title>
+<desc id="d">Measured side by side on the same job stream. Eight queue:work workers with typical jobs: 645 MB stock, 192 MB with queue-prefork (−70 %). Idle: 455 MB versus 102 MB. Heavy jobs: 1,025 MB versus 524 MB. Drop-in: composer require tevkert/queue-prefork, then php artisan queue:restart.</desc>
+<rect x="0.5" y="0.5" width="959" height="367" rx="16" fill="#0f1d1e" stroke="#284142"/>
+<text x="40" y="54" font-size="26" font-weight="700" fill="#f0f6fc">Laravel queue</text>
+<rect x="40.0" y="80" width="282.7" height="170" rx="12" fill="#16282a"/>
+<text x="58.0" y="112" font-size="14" fill="#c9d1d9">8 workers, typical jobs</text>
+<text x="57.0" y="162" font-size="42" font-weight="700" fill="#3fb950" letter-spacing="-0.5">−70 %</text>
+<text x="58.0" y="204" font-size="12" fill="#8b949e">Stock</text>
+<rect x="108.0" y="192" width="96.0" height="16" rx="4" fill="#6e7681"/>
+<text x="210.0" y="204.5" font-size="12" fill="#c9d1d9">645 MB</text>
+<text x="58.0" y="234" font-size="12" fill="#8b949e">Prefork</text>
+<rect x="108.0" y="222" width="28.6" height="16" rx="4" fill="#3987e5"/>
+<text x="142.6" y="234.5" font-size="12" font-weight="600" fill="#f0f6fc">192 MB</text>
+<rect x="338.7" y="80" width="282.7" height="170" rx="12" fill="#16282a"/>
+<text x="356.7" y="112" font-size="14" fill="#c9d1d9">8 workers, idle</text>
+<text x="355.7" y="162" font-size="42" font-weight="700" fill="#3fb950" letter-spacing="-0.5">−78 %</text>
+<text x="356.7" y="204" font-size="12" fill="#8b949e">Stock</text>
+<rect x="406.7" y="192" width="96.0" height="16" rx="4" fill="#6e7681"/>
+<text x="508.7" y="204.5" font-size="12" fill="#c9d1d9">455 MB</text>
+<text x="356.7" y="234" font-size="12" fill="#8b949e">Prefork</text>
+<rect x="406.7" y="222" width="21.5" height="16" rx="4" fill="#3987e5"/>
+<text x="434.2" y="234.5" font-size="12" font-weight="600" fill="#f0f6fc">102 MB</text>
+<rect x="637.3" y="80" width="282.7" height="170" rx="12" fill="#16282a"/>
+<text x="655.3" y="112" font-size="14" fill="#c9d1d9">8 workers, heavy jobs</text>
+<text x="654.3" y="162" font-size="42" font-weight="700" fill="#3fb950" letter-spacing="-0.5">−49 %</text>
+<text x="655.3" y="204" font-size="12" fill="#8b949e">Stock</text>
+<rect x="705.3" y="192" width="96.0" height="16" rx="4" fill="#6e7681"/>
+<text x="807.3" y="204.5" font-size="12" fill="#c9d1d9">1,025 MB</text>
+<text x="655.3" y="234" font-size="12" fill="#8b949e">Prefork</text>
+<rect x="705.3" y="222" width="49.1" height="16" rx="4" fill="#3987e5"/>
+<text x="760.4" y="234.5" font-size="12" font-weight="600" fill="#f0f6fc">524 MB</text>
+<text x="40" y="290" font-size="17" font-weight="700" fill="#f0f6fc">Drop-in</text>
+<text x="114" y="290" font-size="14" fill="#c9d1d9">Install it, then restart your workers. Your supervisord or systemd config stays as it is.</text>
+<rect x="40" y="306" width="328" height="34" rx="8" fill="#0a1415" stroke="#284142"/>
+<text x="54" y="328" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" font-size="12.5" fill="#f0f6fc">composer require tevkert/queue-prefork</text>
+<text x="378" y="329" font-size="16" fill="#8b949e">→</text>
+<rect x="400" y="306" width="226" height="34" rx="8" fill="#0a1415" stroke="#284142"/>
+<text x="414" y="328" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" font-size="12.5" fill="#f0f6fc">php artisan queue:restart</text>
+</svg>

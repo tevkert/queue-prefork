@@ -1,0 +1,240 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '17 3 * * *'   # nightly: the Docker integration suites
+  workflow_dispatch:
+    inputs:
+      integration:
+        description: Run the Docker integration suites
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  # Unit + Mechanics on every push and pull request: no services needed, Mechanics forks real
+  # templates against fake loops and workers, on GitHub's x86_64 Linux runners.
+  tests:
+    name: PHP ${{ matrix.php }} · Laravel ${{ matrix.laravel }} · Horizon ${{ matrix.horizon }}${{ matrix.ffi == 'off' && ' · FFI off' || '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4', '8.5']
+        laravel: ['11', '12', '13']
+        horizon: [floor, tested]   # floor = this package's oldest Horizon minor for that Laravel major; tested = Preflight::TESTED_HORIZON_MINOR
+        ffi: ['on']
+        exclude:
+          - php: '8.2'
+            laravel: '13'   # Laravel 13 needs PHP 8.3+
+        include:
+          - { php: '8.4', laravel: '13', horizon: tested, ffi: 'off' }   # queue:work's shared-log mode
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pcntl, posix, opcache, ${{ matrix.ffi == 'off' && ':ffi' || 'ffi' }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Pick versions
+        run: |
+          tested=$(grep -oE 'TESTED_HORIZON_MINOR = [0-9]+' src/Preflight.php | grep -oE '[0-9]+$')
+          case "${{ matrix.laravel }}-${{ matrix.horizon }}" in
+            11-floor) horizon='5.23.*' ;;
+            12-floor) horizon='5.30.*' ;;
+            13-floor) horizon='5.44.*' ;;
+            *-tested) horizon="5.${tested}.*" ;;
+          esac
+          echo "Horizon constraint: ${horizon}"
+          composer require --no-update --no-interaction \
+            "illuminate/console:^${{ matrix.laravel }}.0" \
+            "illuminate/support:^${{ matrix.laravel }}.0"
+          composer require --dev --no-update --no-interaction "laravel/horizon:${horizon}"
+
+      - name: Install
+        run: composer update --prefer-dist --no-interaction --no-progress --with-all-dependencies
+
+      - name: Installed versions
+        run: composer show | grep -E '^(laravel/horizon|illuminate/support|symfony/process|phpunit/phpunit) '
+
+      - name: Unit and Mechanics
+        run: vendor/bin/phpunit --testsuite Unit,Mechanics
+
+  macos:
+    name: macOS · PHP 8.4 · Laravel 13
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pcntl, posix, opcache
+          coverage: none
+      - run: composer update --prefer-dist --no-interaction --no-progress
+      - run: vendor/bin/phpunit --testsuite Unit,Mechanics
+
+  package:
+    name: Package contents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - run: composer validate --strict --no-check-lock
+      - name: The dist archive holds only the package
+        run: |
+          git archive HEAD | tar -t > dist.txt
+          cat dist.txt
+          if grep -E '^(art|docker|workbench|soak|tests|\.github)/' dist.txt; then
+            echo "::error::export-ignore is missing for the paths above"; exit 1
+          fi
+          for required in composer.json LICENSE README.md bin/template.php bin/stub.sh config/queue-prefork.php src/hook.php; do
+            grep -qx "$required" dist.txt || { echo "::error::$required is missing from the dist"; exit 1; }
+          done
+
+  # Real Horizon and queue:work in Docker (docker/README.md): the integration and parity suites against
+  # stock, nightly and on demand. Laravel 13, Horizon 5.50 and PHP 8.4, as the workbench's lock pins them.
+  integration:
+    name: Docker · ${{ matrix.name }}
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.integration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Horizon, horizon: 'true', host: 'true', stopasgroup: 'true', fast: 'true', redis: phpredis, compose: '', tests: tests/Integration, experimental: false }
+          - { name: Horizon · stopasgroup off, horizon: 'true', host: 'true', stopasgroup: 'false', fast: 'true', redis: phpredis, compose: '', tests: tests/Integration, experimental: false }
+          - { name: Horizon · fast_termination off, horizon: 'true', host: 'true', stopasgroup: 'true', fast: 'false', redis: phpredis, compose: '', tests: tests/Integration, experimental: false }
+          - { name: Horizon · master spawns its template, horizon: 'true', host: 'false', stopasgroup: 'true', fast: 'true', redis: phpredis, compose: '', tests: 'tests/Integration/HorizonPreforkTest.php tests/Integration/LifecycleParityTest.php', experimental: false }
+          - { name: Horizon · auto_prepend_file, horizon: 'true', host: 'true', stopasgroup: 'true', fast: 'true', redis: phpredis, compose: '-f compose.prepend.yml', tests: tests/Integration/StockParityTest.php, experimental: false }
+          - { name: queue:work, horizon: 'false', host: 'true', stopasgroup: 'true', fast: 'true', redis: phpredis, compose: '', tests: 'tests/Integration/QueueWorkParityTest.php tests/Integration/QueueWorkStockParityTest.php tests/Integration/QueueWorkLifecycleTest.php', experimental: false }
+          - { name: queue:work · stopasgroup off, horizon: 'false', host: 'true', stopasgroup: 'false', fast: 'true', redis: phpredis, compose: '', tests: 'tests/Integration/QueueWorkParityTest.php tests/Integration/QueueWorkStockParityTest.php tests/Integration/QueueWorkLifecycleTest.php', experimental: false }
+          # The workbench doesn't install predis or pass REDIS_CLIENT through yet: experimental until it does.
+          - { name: Horizon · predis, horizon: 'true', host: 'true', stopasgroup: 'true', fast: 'true', redis: predis, compose: '', tests: tests/Integration, experimental: true }
+    env:
+      HORIZON: ${{ matrix.horizon }}
+      QUEUE_WORK: ${{ matrix.horizon == 'true' && 'false' || 'true' }}
+      HORIZON_HOST: ${{ matrix.host }}
+      SUPERVISOR_STOPASGROUP: ${{ matrix.stopasgroup }}
+      HORIZON_FAST_TERMINATION: ${{ matrix.fast }}
+      REDIS_CLIENT: ${{ matrix.redis }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pcntl, posix
+          coverage: none
+
+      - name: Install the package's dev dependencies (the suites run on the host and drive the containers)
+        run: composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Let the containers' user write the bind-mounted checkout
+        run: chmod -R a+rwX "$GITHUB_WORKSPACE"
+
+      - name: Build and start both stacks
+        working-directory: docker
+        run: |
+          docker compose -f compose.yml ${{ matrix.compose }} build
+          docker compose -f compose.yml ${{ matrix.compose }} up -d app-stock app-prefork
+
+      - name: Wait for the workers in both stacks
+        run: |
+          for container in queue-prefork-app-stock-1 queue-prefork-app-prefork-1; do
+            for i in $(seq 1 120); do
+              if [ "$HORIZON" = true ]; then
+                if docker exec -w /repo/workbench "$container" php artisan horizon:status 2>/dev/null | grep -qi running; then
+                  echo "$container: Horizon running"; continue 2
+                fi
+              elif docker exec "$container" supervisorctl -c /repo/docker/php/supervisord.conf status 'queue-work:*' 2>/dev/null | grep -q RUNNING; then
+                echo "$container: queue:work running"; continue 2
+              fi
+              sleep 5
+            done
+            echo "::error::$container: the workers did not start"; exit 1
+          done
+
+      - name: Integration suites
+        env:
+          HP_INTEGRATION: '1'
+          HP_VARIANT: ${{ matrix.redis }}-host-${{ matrix.host }}-stopasgroup-${{ matrix.stopasgroup }}-fast-${{ matrix.fast }}
+          HP_LIFECYCLE_LOG: ${{ github.workspace }}/lifecycle.jsonl
+        run: vendor/bin/phpunit ${{ matrix.tests }}
+
+      - name: Logs
+        if: failure()
+        working-directory: docker
+        run: docker compose -f compose.yml ${{ matrix.compose }} logs --no-color --tail=500 app-stock app-prefork
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lifecycle-${{ strategy.job-index }}
+          path: lifecycle.jsonl
+          if-no-files-found: ignore
+
+      - name: Stop
+        if: always()
+        working-directory: docker
+        run: docker compose -f compose.yml ${{ matrix.compose }} down -v
+
+  # The process-manager gates (docker/README.md, Gates): a supervisord program whose forked worker
+  # crashes at boot, and systemd units against stock units in a privileged systemd container.
+  gates:
+    name: Gate · ${{ matrix.gate }}
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.integration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        gate: [supervisord, systemd]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pcntl, posix
+          coverage: none
+
+      - run: composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Let the containers' user write the bind-mounted checkout
+        run: chmod -R a+rwX "$GITHUB_WORKSPACE"
+
+      - name: Build the PHP image and install the workbench
+        working-directory: docker
+        run: |
+          docker compose build
+          docker compose run --rm setup
+
+      - name: supervisord
+        if: matrix.gate == 'supervisord'
+        run: docker run --rm --init --network none -u 1000:1000 -v "$PWD:/repo:ro" queue-prefork-php:8.4 sh /repo/docker/supervisord/gate.sh
+
+      - name: systemd
+        if: matrix.gate == 'systemd'
+        run: sh docker/systemd/run.sh
+
+      - name: Stop
+        if: always()
+        working-directory: docker
+        run: docker compose down -v

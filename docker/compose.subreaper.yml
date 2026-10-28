@@ -1,0 +1,8 @@
+# Variant: Docker's init is PID 1 and the container's tini runs with -s as a child subreaper, so a
+# dead master's orphans are re-parented to a non-PID-1 subreaper.
+# docker compose -f compose.yml -f compose.subreaper.yml up -d
+services:
+  app-stock: &subreaper
+    init: true
+    entrypoint: ["/usr/bin/tini", "-s", "--", "/repo/docker/php/entrypoint.sh"]
+  app-prefork: *subreaper

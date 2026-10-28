@@ -1,0 +1,7 @@
+/vendor/
+/workbench/vendor/
+/workbench/.env
+/workbench/storage/*.key
+/soak/results/
+/.phpunit.cache/
+/composer.lock

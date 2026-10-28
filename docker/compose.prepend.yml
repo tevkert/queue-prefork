@@ -1,0 +1,8 @@
+# Variant: an auto_prepend_file (workbench/prepend.php) in every PHP process of the app containers.
+# docker compose -f compose.yml -f compose.prepend.yml up -d
+services:
+  app-stock: &prepend
+    environment:
+      # A leading ':' keeps the image's own conf.d and adds this directory after it.
+      PHP_INI_SCAN_DIR: ":/repo/docker/php/variants/prepend"
+  app-prefork: *prepend

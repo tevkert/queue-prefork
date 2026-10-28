@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="368" viewBox="0 0 960 368" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif">
+<title id="t">queue-prefork with Horizon: memory and CPU savings</title>
+<desc id="d">Measured side by side on the same job stream of typical jobs. All Horizon processes: 1,279 MB stock, 240 MB with queue-prefork (−81 %). One worker: 63 MB versus 6.6 MB of its own. CPU: 21.3 percent versus 11.9 percent of one core. New worker ready in 190 ms instead of 1,100 ms. Drop-in: composer require tevkert/queue-prefork, then php artisan horizon:terminate.</desc>
+<rect x="0.5" y="0.5" width="959" height="367" rx="16" fill="#171528" stroke="#39345a"/>
+<text x="40" y="54" font-size="26" font-weight="700" fill="#f0f6fc">Laravel Horizon</text>
+<rect x="40.0" y="80" width="208.0" height="170" rx="12" fill="#1f1c35"/>
+<text x="58.0" y="112" font-size="14" fill="#c9d1d9">Horizon memory</text>
+<text x="57.0" y="162" font-size="42" font-weight="700" fill="#3fb950" letter-spacing="-0.5">−81 %</text>
+<text x="58.0" y="204" font-size="12" fill="#8b949e">Stock</text>
+<rect x="108.0" y="192" width="71.0" height="16" rx="4" fill="#6e7681"/>
+<text x="185.0" y="204.5" font-size="12" fill="#c9d1d9">1,279 MB</text>
+<text x="58.0" y="234" font-size="12" fill="#8b949e">Prefork</text>
+<rect x="108.0" y="222" width="13.3" height="16" rx="4" fill="#3987e5"/>
+<text x="127.3" y="234.5" font-size="12" font-weight="600" fill="#f0f6fc">240 MB</text>
+<rect x="264.0" y="80" width="208.0" height="170" rx="12" fill="#1f1c35"/>
+<text x="282.0" y="112" font-size="14" fill="#c9d1d9">Memory per worker</text>
+<text x="281.0" y="162" font-size="42" font-weight="700" fill="#3fb950" letter-spacing="-0.5">−90 %</text>
+<text x="282.0" y="204" font-size="12" fill="#8b949e">Stock</text>
+<rect x="332.0" y="192" width="71.0" height="16" rx="4" fill="#6e7681"/>
+<text x="409.0" y="204.5" font-size="12" fill="#c9d1d9">63 MB</text>
+<text x="282.0" y="234" font-size="12" fill="#8b949e">Prefork</text>
+<rect x="332.0" y="222" width="7.4" height="16" rx="4" fill="#3987e5"/>
+<text x="345.4" y="234.5" font-size="12" font-weight="600" fill="#f0f6fc">6.6 MB</text>
+<rect x="488.0" y="80" width="208.0" height="170" rx="12" fill="#1f1c35"/>
+<text x="506.0" y="112" font-size="14" fill="#c9d1d9">CPU, % of one core</text>
+<text x="505.0" y="162" font-size="42" font-weight="700" fill="#3fb950" letter-spacing="-0.5">−44 %</text>
+<text x="506.0" y="204" font-size="12" fill="#8b949e">Stock</text>
+<rect x="556.0" y="192" width="71.0" height="16" rx="4" fill="#6e7681"/>
+<text x="633.0" y="204.5" font-size="12" fill="#c9d1d9">21.3 %</text>
+<text x="506.0" y="234" font-size="12" fill="#8b949e">Prefork</text>
+<rect x="556.0" y="222" width="39.7" height="16" rx="4" fill="#3987e5"/>
+<text x="601.7" y="234.5" font-size="12" font-weight="600" fill="#f0f6fc">11.9 %</text>
+<rect x="712.0" y="80" width="208.0" height="170" rx="12" fill="#1f1c35"/>
+<text x="730.0" y="112" font-size="14" fill="#c9d1d9">New worker ready</text>
+<text x="729.0" y="162" font-size="42" font-weight="700" fill="#3fb950" letter-spacing="-0.5">5.8×<tspan font-size="18" font-weight="600" fill="#c9d1d9" letter-spacing="0"> faster</tspan></text>
+<text x="730.0" y="204" font-size="12" fill="#8b949e">Stock</text>
+<rect x="780.0" y="192" width="71.0" height="16" rx="4" fill="#6e7681"/>
+<text x="857.0" y="204.5" font-size="12" fill="#c9d1d9">1,100 ms</text>
+<text x="730.0" y="234" font-size="12" fill="#8b949e">Prefork</text>
+<rect x="780.0" y="222" width="12.3" height="16" rx="4" fill="#3987e5"/>
+<text x="798.3" y="234.5" font-size="12" font-weight="600" fill="#f0f6fc">190 ms</text>
+<text x="40" y="290" font-size="17" font-weight="700" fill="#f0f6fc">Drop-in</text>
+<text x="114" y="290" font-size="14" fill="#c9d1d9">Install it, then restart Horizon. Your app and Horizon config stay as they are.</text>
+<rect x="40" y="306" width="328" height="34" rx="8" fill="#100e1d" stroke="#39345a"/>
+<text x="54" y="328" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" font-size="12.5" fill="#f0f6fc">composer require tevkert/queue-prefork</text>
+<text x="378" y="329" font-size="16" fill="#8b949e">→</text>
+<rect x="400" y="306" width="257" height="34" rx="8" fill="#100e1d" stroke="#39345a"/>
+<text x="414" y="328" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" font-size="12.5" fill="#f0f6fc">php artisan horizon:terminate</text>
+</svg>

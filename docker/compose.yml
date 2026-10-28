@@ -1,0 +1,212 @@
+# Test environment for tevkert/queue-prefork: two identical app stacks, stock and prefork, on one
+# MySQL, one Redis and an HTTP stub. See README.md for the commands.
+#
+# Mode and entry switches (host environment, read when the containers are created):
+#   HORIZON=true|false                      run Horizon (default true)
+#   QUEUE_WORK=true|false                   run QUEUE_WORK_PROCS plain queue:work workers (default false)
+#   HORIZON_HOST=true|false                 prefork stack: the master forked from its host template
+#                                           (default true), or spawning its template as a child
+#   SUPERVISOR_STOPASGROUP=true|false       supervisord group mode (default true)
+#   HORIZON_FAST_TERMINATION=true|false     horizon.fast_termination (default true)
+#   CONFIG_CACHE=true|false                 config:cache at start (default true)
+#   SOAK_DISPATCH, SOAK_MIX, SOAK_RATE, SOAK_DURATION, SOAK_SEED, SOAK_SAMPLE, SOAK_SAMPLE_INTERVAL   the soak
+name: queue-prefork
+
+x-php: &php
+  image: queue-prefork-php:8.4
+  build:
+    context: ./php
+  user: "1000:1000"
+
+x-app-env: &app-env
+  APP_NAME: workbench
+  APP_ENV: prefork-test
+  # Test-only key, generated for this repository.
+  APP_KEY: "base64:FVmzKG3rolmfulehbnyZwVNuKJWtiz6Ga+ijNvh7NPU="
+  APP_DEBUG: "false"
+  LOG_CHANNEL: single
+  LOG_LEVEL: debug
+  DB_CONNECTION: mysql
+  DB_HOST: mysql
+  DB_PORT: "3306"
+  DB_USERNAME: hp
+  DB_PASSWORD: hp
+  QUEUE_CONNECTION: redis
+  REDIS_QUEUE_RETRY_AFTER: "180"
+  CACHE_STORE: redis
+  SESSION_DRIVER: array
+  REDIS_CLIENT: phpredis
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  WORKBENCH_STUB_URL: http://stub:8080
+  APP_URL: http://workbench.test
+  # The workbench's packages, configured to boot offline: every outbound endpoint is the
+  # stub, every credential a dummy.
+  MAIL_MAILER: log
+  MAIL_LOG_CHANNEL: mail
+  NIGHTWATCH_ENABLED: ${NIGHTWATCH_ENABLED:-true}
+  NIGHTWATCH_TOKEN: workbench-dummy-token    # no agent listens on 127.0.0.1:2407
+  PULSE_ENABLED: ${PULSE_ENABLED:-true}      # database storage
+  SCOUT_DRIVER: database
+  SCOUT_QUEUE_ENABLED: "true"
+  OPENROUTER_API_KEY: workbench-dummy-key
+  OPENROUTER_URL: http://stub:8080/v1
+  AWS_ACCESS_KEY_ID: workbench
+  AWS_SECRET_ACCESS_KEY: workbench
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_BUCKET: workbench
+  AWS_ENDPOINT: http://stub:8080
+  AWS_USE_PATH_STYLE_ENDPOINT: "true"
+  # Test-only VAPID pair, generated for this repository; the push endpoints are the stub.
+  VAPID_PUBLIC_KEY: BA5cpGHRQpJSzbqCeFz5Xua-IjDlf4RPbnrUJfcKYZ4Rm4NViZ3zl_VEb2XxPNHbnK1R0fgcr71f1yr5jXCWWrY
+  VAPID_PRIVATE_KEY: rbRpBNVZDGM8lreyKJYAQ0yfOS6Ay-gdQAFVGDiwOdY
+  HORIZON: ${HORIZON:-true}
+  QUEUE_WORK: ${QUEUE_WORK:-false}
+  QUEUE_WORK_PROCS: ${QUEUE_WORK_PROCS:-4}
+  QUEUE_WORK_QUEUES: ${QUEUE_WORK_QUEUES:-import,media,default,ai,scout,notify,maintenance,digest}
+  QUEUE_WORK_STOPWAIT: ${QUEUE_WORK_STOPWAIT:-10}
+  HORIZON_HOST: ${HORIZON_HOST:-true}
+  SUPERVISOR_STOPASGROUP: ${SUPERVISOR_STOPASGROUP:-true}
+  HORIZON_FAST_TERMINATION: ${HORIZON_FAST_TERMINATION:-true}
+  CONFIG_CACHE: ${CONFIG_CACHE:-true}
+  SOAK_DISPATCH: ${SOAK_DISPATCH:-false}
+  SOAK_MIX: ${SOAK_MIX:-heavy}
+  SOAK_RATE: ${SOAK_RATE:-420}
+  SOAK_DURATION: ${SOAK_DURATION:-60}
+  SOAK_SEED: ${SOAK_SEED:-1}
+  SOAK_SAMPLE: ${SOAK_SAMPLE:-false}
+  SOAK_SAMPLE_INTERVAL: ${SOAK_SAMPLE_INTERVAL:-60}
+
+x-app: &app
+  <<: *php
+  init: false
+  entrypoint: ["/usr/bin/tini", "--", "/repo/docker/php/entrypoint.sh"]
+  depends_on:
+    setup:
+      condition: service_completed_successfully
+    mysql:
+      condition: service_healthy
+    redis:
+      condition: service_started
+    stub:
+      condition: service_started
+  # Sized from the heavy workbench's measured stock tree: master ~60 MB, 6 supervisors ~48 MB each,
+  # workers 70-100 MB PSS, so 22 workers plus the dispatcher and sampler come to about 2.2 GB PSS.
+  # 1800m made stock reclaim and swap mid-run (memory.events max > 0), which distorts PSS, so the limit
+  # has headroom and swap is off (memswap_limit = mem_limit): a container that outgrows it is
+  # OOM-killed visibly instead of paging out. Prefork's tree stays well under 1 GB.
+  mem_limit: 2600m
+  memswap_limit: 2600m
+  stop_grace_period: 20s
+  restart: "no"
+  networks: [backend]
+
+services:
+  # One-shot: installs workbench/vendor inside Linux (composer install), then exits.
+  setup:
+    <<: *php
+    command: ["/repo/docker/php/setup.sh"]
+    environment:
+      WORKBENCH_TRACE: "false"
+    volumes:
+      - ..:/repo
+      - composer-cache:/home/forge/.composer/cache
+    restart: "no"
+
+  mysql:
+    image: mysql:8.4
+    networks: [backend]
+    command:
+      - --innodb-buffer-pool-size=64M
+      - --innodb-log-buffer-size=8M
+      - --performance-schema=OFF
+      - --mysqlx=OFF
+      - --skip-name-resolve
+      - --host-cache-size=0
+      - --max-connections=60
+      - --table-open-cache=256
+      - --table-definition-cache=400
+      - --tmp-table-size=16M
+      - --max-heap-table-size=16M
+      - --key-buffer-size=8M
+      - --thread-cache-size=8
+      - --innodb-redo-log-capacity=64M
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uhp -php --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 10s
+    mem_limit: 640m
+
+  redis:
+    image: redis:7-alpine
+    networks: [backend]
+    # Both stacks share it. Horizon keeps 60 minutes of job records, about 250 MB per stack
+    # at the soak's rate.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "1200mb", "--maxmemory-policy", "noeviction"]
+    mem_limit: 1400m
+
+  stub:
+    <<: *php
+    command: ["php", "-S", "0.0.0.0:8080", "/repo/docker/stub/index.php"]
+    networks: [backend]
+    environment:
+      # Enough for both containers' import and LLM calls at once without queueing in the stub.
+      PHP_CLI_SERVER_WORKERS: "24"
+    volumes:
+      - ..:/repo
+    mem_limit: 384m
+
+  app-stock:
+    <<: *app
+    environment:
+      <<: *app-env
+      QUEUE_PREFORK: "false"
+      SOAK_MODE: ${SOAK_MODE_STOCK:-stock}
+      DB_DATABASE: hp_stock
+      REDIS_DB: "0"
+      REDIS_CACHE_DB: "1"
+      REDIS_PREFIX: "hp_stock:"
+      CACHE_PREFIX: "hp_stock_cache:"
+      HORIZON_PREFIX: "hp_stock_horizon:"
+    volumes:
+      - ..:/repo
+      - stock-storage:/repo/workbench/storage
+      - stock-bootstrap-cache:/repo/workbench/bootstrap/cache
+
+  app-prefork:
+    <<: *app
+    environment:
+      <<: *app-env
+      QUEUE_PREFORK: "true"
+      SOAK_MODE: ${SOAK_MODE_PREFORK:-prefork}
+      DB_DATABASE: hp_prefork
+      REDIS_DB: "2"
+      REDIS_CACHE_DB: "3"
+      REDIS_PREFIX: "hp_prefork:"
+      CACHE_PREFIX: "hp_prefork_cache:"
+      HORIZON_PREFIX: "hp_prefork_horizon:"
+    volumes:
+      - ..:/repo
+      - prefork-storage:/repo/workbench/storage
+      - prefork-bootstrap-cache:/repo/workbench/bootstrap/cache
+
+# Everything but `setup` (which downloads packages) is on an internal network: no route out, so the
+# app's packages (Nightwatch, AI, S3, web push, ...) can only reach the stub, MySQL and Redis.
+networks:
+  backend:
+    internal: true
+
+volumes:
+  mysql-data:
+  composer-cache:
+  stock-storage:
+  stock-bootstrap-cache:
+  prefork-storage:
+  prefork-bootstrap-cache:

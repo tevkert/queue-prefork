@@ -1,0 +1,13 @@
+[Unit]
+Description=queue-prefork systemd gate: qp-mixed-stock worker %i
+
+[Service]
+User=forge
+WorkingDirectory=/repo
+Environment=FIXTURE_DRAIN=0.3 FIXTURE_TERM_EXIT=7
+Environment=QUEUE_PREFORK=0
+ExecStart=/usr/local/bin/php /repo/tests/Fixtures/queue-app/artisan queue:work --name=%i
+KillMode=mixed
+Restart=always
+RestartSec=1
+TimeoutStopSec=10

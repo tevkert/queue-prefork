@@ -1,0 +1,47 @@
+{
+    "name": "tevkert/queue-prefork",
+    "description": "Cut the memory of Laravel queue workers by up to 80 %: queue:work and Horizon workers run as forks of one template that shares compiled code through opcache. Drop-in, no code changes.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["laravel", "queue", "queue-work", "queue-workers", "worker", "horizon", "laravel-horizon", "supervisor", "memory", "memory-usage", "ram", "performance", "fork", "prefork", "opcache"],
+    "homepage": "https://github.com/tevkert/queue-prefork",
+    "authors": [
+        { "name": "Ando Hakobyan", "homepage": "https://github.com/tevkert" }
+    ],
+    "support": {
+        "issues": "https://github.com/tevkert/queue-prefork/issues",
+        "source": "https://github.com/tevkert/queue-prefork",
+        "security": "https://github.com/tevkert/queue-prefork/security/advisories/new"
+    },
+    "require": {
+        "php": "^8.2",
+        "illuminate/console": "^11.0|^12.0|^13.0",
+        "illuminate/support": "^11.0|^12.0|^13.0"
+    },
+    "require-dev": {
+        "laravel/horizon": "^5.23",
+        "phpunit/phpunit": "^11.0|^12.0"
+    },
+    "suggest": {
+        "ext-pcntl": "Needed to prefork anything; without it every worker runs stock.",
+        "ext-posix": "Needed to prefork anything; without it every worker runs stock.",
+        "ext-ffi": "queue:work workers keep their output in their own log; without it (Linux) they use the shared log.",
+        "laravel/horizon": "Horizon's master and workers are preforked too."
+    },
+    "autoload": {
+        "psr-4": { "Tevkert\\QueuePrefork\\": "src/" },
+        "files": ["src/hook.php"]
+    },
+    "autoload-dev": {
+        "psr-4": { "Tevkert\\QueuePrefork\\Tests\\": "tests/" }
+    },
+    "scripts": {
+        "test": "phpunit --testsuite Unit,Mechanics",
+        "test:integration": "HP_INTEGRATION=1 phpunit --testsuite Integration"
+    },
+    "extra": {
+        "laravel": { "providers": ["Tevkert\\QueuePrefork\\QueuePreforkServiceProvider"] }
+    },
+    "config": { "sort-packages": true },
+    "minimum-stability": "stable"
+}

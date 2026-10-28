@@ -1,0 +1,116 @@
+<?php
+
+// A stand-in for `php artisan queue:work …` (QueueTemplateTest): loading the package's Composer
+// autoloader runs src/hook.php, which hands this process to the shared template. Whatever comes back
+// (a forked child, or this process booting stock) then behaves like a small worker.
+
+require __DIR__.'/../../../vendor/autoload.php';
+
+use Tevkert\QueuePrefork\Runtime;
+
+$mode = Runtime::isChild() ? 'forked' : 'stock';
+
+if (Runtime::$warmup) {
+    // The template's throwaway warm-up boot, which leaves as QueueWorkerLink::starting has it leave.
+    echo 'warmup pid='.getmypid()."\n";
+
+    while (getenv('FIXTURE_WARMUP_HANG')) {
+        usleep(100000); // one that never gets to leave: the template must kill it at its deadline
+    }
+
+    Runtime::$channel->send(['t' => 'ready', 'id' => 'warmup']);
+    Runtime::$channel->flushBlocking(1.0);
+    exit(0);
+}
+
+if (getenv('FIXTURE_BOOT_SLEEP')) {
+    // A slow boot, before any signal handler: a TERM now kills, as in a booting Laravel worker.
+    echo "booting {$mode} pid=".getmypid()."\n";
+    usleep((int) ((float) getenv('FIXTURE_BOOT_SLEEP') * 1e6));
+}
+
+// Before the first line of output, which the tests wait for before they signal.
+pcntl_async_signals(true);
+pcntl_signal(SIGTERM, function (): void {
+    echo "TERM received\n";
+    usleep((int) ((float) (getenv('FIXTURE_DRAIN') ?: 0.3) * 1e6));
+    exit((int) (getenv('FIXTURE_TERM_EXIT') ?: 7));
+});
+pcntl_signal(SIGUSR2, fn () => print("USR2 received\n"));
+
+echo "worker {$mode} pid=".getmypid().' argv='.json_encode($argv).' env='.(getenv('FIXTURE_MARK') ?: '-').' name='.(getenv('FIXTURE_NAME') ?: '-')."\n";
+fwrite(STDERR, "stderr line from {$mode}\n");
+
+if (getenv('FIXTURE_FORGE_ENV')) {
+    // What a forged spawn message (forge.php) tried to set: the kernel's values must win.
+    echo "context={$mode} config_cache=".(getenv('APP_CONFIG_CACHE') ?: '-').sprintf(' umask=%04o', umask())
+        .' files='.(posix_getrlimit()['soft openfiles'] ?? '?').' nice='.pcntl_getpriority().' cwd='.getcwd()."\n";
+}
+fwrite(STDOUT, "STDOUT constant line\n");
+
+if (getenv('FIXTURE_CRASH') && $mode === 'forked') {
+    exit(3); // dies before its first loop, like a fork-unsafe boot
+}
+
+if (getenv('FIXTURE_DECLINE') && Runtime::$channel !== null) {
+    // what a worker does when the post-boot switch is off
+    Runtime::$channel->send(['t' => 'stock', 'reason' => getenv('FIXTURE_DECLINE') === '1' ? 'switch' : getenv('FIXTURE_DECLINE')]);
+    Runtime::$channel->flushBlocking(1.0);
+    exit(0);
+}
+
+if (Runtime::$channel !== null) {
+    Runtime::$channel->send(['t' => 'ready', 'id' => Runtime::$requestId]);
+    Runtime::$channel->flushBlocking(1.0);
+}
+
+if (getenv('FIXTURE_SPIN')) {
+    // A CPU-bound job under the ini's max_execution_time (no set_time_limit of its own).
+    for ($i = 0; ; $i++) {
+        $i ^= 1;
+    }
+}
+
+if (getenv('FIXTURE_TIME_LIMIT')) {
+    // A job that runs past set_time_limit(): PHP's SIGPROF handler ends it with a fatal error (255).
+    set_time_limit(1);
+
+    for ($i = 0; ; $i++) {
+        $i ^= 1;
+    }
+}
+
+if (getenv('FIXTURE_PIPE')) {
+    // A job writing to a pipe whose reader is gone: the PHP CLI ignores SIGPIPE, so this is an error.
+    $pipe = popen('true', 'w');
+    usleep(200000);
+    @fwrite($pipe, str_repeat('x', 1 << 17));
+    @pclose($pipe);
+    echo "pipe write survived\n";
+}
+
+if (getenv('FIXTURE_BACKGROUND') && $mode === 'forked') {
+    // A job's background process, in the worker's process group.
+    $background = pcntl_fork();
+
+    if ($background === 0) {
+        pcntl_exec('/bin/sleep', ['30']);
+        exit(127);
+    }
+
+    echo "background pid={$background}\n";
+}
+
+$until = microtime(true) + (float) (getenv('FIXTURE_LIFETIME') ?: 3600);
+
+$spam = (int) (getenv('FIXTURE_SPAM') ?: 0);
+
+while (microtime(true) < $until) {
+    if ($spam > 0) {
+        echo str_repeat('x', $spam)."\n";
+    }
+
+    usleep(50000);
+}
+
+exit((int) (getenv('FIXTURE_EXIT') ?: 0));
