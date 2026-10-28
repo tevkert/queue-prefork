@@ -2,6 +2,8 @@
 
 namespace Tevkert\QueuePrefork\Server;
 
+use Tevkert\QueuePrefork\Support\Process;
+
 /** Flag-only signal handling for the servers: handlers record, the main loop acts. */
 final class Signals
 {
@@ -64,7 +66,7 @@ final class Signals
                 continue;
             }
 
-            $pid = pcntl_fork();
+            $pid = Process::fork();
 
             if ($pid === 0) {
                 posix_kill(getmypid(), $signal);

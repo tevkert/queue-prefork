@@ -239,7 +239,7 @@ No job failed, and every run's last hour was within a point of its median. Prefo
 | `the app binds Laravel\Horizon\…` | Your app replaces one of Horizon's classes that prefork overrides. Prefork can't combine with that. |
 | `entry script … calls getopt()` | Read `$_SERVER['argv']` instead. |
 | `probe of … failed` | An entry script doesn't load Composer's autoloader or boot Artisan. The error output is in the reason. |
-| `template unsafe: fd N: socket …` | An extension opened a socket or thread at PHP startup. If you know it's fork-safe, allow it with `QUEUE_PREFORK_ALLOW_DESCRIPTORS`. |
+| `template unsafe: fd N: …` | An extension opened a socket, eventfd or thread at PHP startup (php-zmq holds an eventfd, for one). Turn it off for the CLI if your workers don't use it, or, if you know it's fork-safe, allow it with `QUEUE_PREFORK_ALLOW_DESCRIPTORS`. |
 | One supervisor shows `crash breaker` | Its workers died 5 times before their first loop. The app can't boot in a worker, which would fail in stock too, so check the log. |
 
 **Memory didn't drop?**

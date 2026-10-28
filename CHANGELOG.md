@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-10-28
+
+- **PHP 8.2 and 8.3:** forked processes no longer read their parent's `/proc/self`. Before PHP 8.4 a fork keeps its parent's realpath cache, so a worker copying its supervisor's ignored signals (as under `nohup`) read the template's instead of its own. PHP 8.4 and later weren't affected.
+- **CI fixes:** the test jobs load only the extensions the package needs (the runner's php-zmq holds an eventfd that a template won't fork with), have a 20-minute limit, and the Mechanics tests skip cleanly without FFI.
+
 ## [1.0.0] - 2026-10-28
 
 First release: Laravel queue workers run as forks of a template process that shares their compiled code through one opcache. It's on once installed, with safety checks and a fallback to stock workers, and supports Laravel 11–13.
@@ -12,4 +17,5 @@ First release: Laravel queue workers run as forks of a template process that sha
 - **Commands:** `queue-prefork:doctor`, `queue-prefork:status`, `queue-prefork:switch` and `queue-prefork:retire`.
 - Developed as `horizon-prefork` before the first release, which only covered Horizon.
 
+[1.0.1]: https://github.com/tevkert/queue-prefork/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/tevkert/queue-prefork/releases/tag/v1.0.0

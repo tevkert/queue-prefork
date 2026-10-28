@@ -3,6 +3,7 @@
 namespace Tevkert\QueuePrefork\Server;
 
 use Tevkert\QueuePrefork\Support\Identity;
+use Tevkert\QueuePrefork\Support\Process;
 
 /**
  * Shared-log mode's output file, storage/logs/queue-prefork-<host>-<key16>.log: the stdout and stderr
@@ -51,7 +52,7 @@ final class SharedLog
             return;
         }
 
-        $helper = pcntl_fork();
+        $helper = Process::fork();
 
         if ($helper !== 0) {
             return; // the template's reap() collects it; a failed fork just rotates at the next check

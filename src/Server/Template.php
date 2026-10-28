@@ -9,6 +9,7 @@ use Tevkert\QueuePrefork\Support\Audit;
 use Tevkert\QueuePrefork\Support\Channel;
 use Tevkert\QueuePrefork\Support\CommandLine;
 use Tevkert\QueuePrefork\Support\Identity;
+use Tevkert\QueuePrefork\Support\Process;
 use Tevkert\QueuePrefork\Support\TemplateKey;
 use Throwable;
 
@@ -216,7 +217,7 @@ final class Template
         $host = getmypid();
         $hostStart = Identity::startTime($host);
         $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-        $pid = $pair === false ? -1 : pcntl_fork();
+        $pid = $pair === false ? -1 : Process::fork();
 
         if ($pid === 0) {
             @fclose($pair[0]);
@@ -508,7 +509,7 @@ final class Template
         pcntl_sigprocmask(SIG_BLOCK, [SIGCHLD], $previous);
 
         try {
-            $pid = pcntl_fork();
+            $pid = Process::fork();
         } catch (Throwable) {
             $pid = -1;
         }

@@ -10,6 +10,7 @@ use Tevkert\QueuePrefork\Support\CommandLine;
 use Tevkert\QueuePrefork\Support\Fd;
 use Tevkert\QueuePrefork\Support\Identity;
 use Tevkert\QueuePrefork\Support\Native;
+use Tevkert\QueuePrefork\Support\Process;
 use Tevkert\QueuePrefork\Support\RuntimeDir;
 use Tevkert\QueuePrefork\Support\TemplateKey;
 use Throwable;
@@ -168,7 +169,7 @@ final class WorkServer
         $classes = [
             Audit::class, Channel::class, CommandLine::class, Fd::class, Identity::class, Native::class, RuntimeDir::class,
             TemplateKey::class, ChildRoutine::class, ChildJob::class, RoleGuard::class, Signals::class, Opcache::class,
-            Preflight::class, WorkerContext::class, SharedLog::class,
+            Preflight::class, WorkerContext::class, SharedLog::class, Process::class,
         ];
 
         foreach ($classes as $class) {
@@ -598,7 +599,7 @@ final class WorkServer
         }
 
         pcntl_sigprocmask(SIG_BLOCK, [SIGCHLD], $previous);
-        $pid = pcntl_fork();
+        $pid = Process::fork();
 
         if ($pid === 0) {
             Runtime::$warmup = true;
@@ -681,7 +682,7 @@ final class WorkServer
         pcntl_sigprocmask(SIG_BLOCK, [SIGCHLD], $previous);
 
         try {
-            $pid = pcntl_fork();
+            $pid = Process::fork();
         } catch (Throwable) {
             $pid = -1;
         }

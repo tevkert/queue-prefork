@@ -4,6 +4,7 @@ namespace Tevkert\QueuePrefork\Tests\Mechanics;
 
 use PHPUnit\Framework\TestCase;
 use Tevkert\QueuePrefork\Support\Identity;
+use Tevkert\QueuePrefork\Support\Native;
 
 /**
  * The per-worker fork end to end, without Laravel: a fixture `artisan`
@@ -30,6 +31,10 @@ abstract class QueueCase extends TestCase
         $this->dir = sys_get_temp_dir().'/qpt-'.getmypid().'-'.bin2hex(random_bytes(3));
         mkdir($this->dir, 0700);
         $this->runtime = $this->dir.'/qp-'.posix_geteuid();
+
+        if (! Native::available()) {
+            $this->markTestSkipped('starting a program with only fds 0-2 open needs FFI in the test process: '.Native::reason());
+        }
     }
 
     protected function tearDown(): void
@@ -72,24 +77,27 @@ abstract class QueueCase extends TestCase
         $pid = pcntl_fork();
 
         if ($pid === 0) {
-            foreach (\Tevkert\QueuePrefork\Support\Audit::openFds() as $fd) {
-                if ($fd > 2) {
-                    \Tevkert\QueuePrefork\Support\Native::get()->close($fd);
+            try {
+                foreach (\Tevkert\QueuePrefork\Support\Audit::openFds() as $fd) {
+                    if ($fd > 2) {
+                        Native::get()->close($fd);
+                    }
                 }
-            }
 
-            if ($cwd !== null) {
-                chdir($cwd);
-            }
-
-            if ($crowded) {
-                for ($fd = 3; $fd <= 12; $fd++) {
-                    $GLOBALS['__crowd'][] = fopen('/dev/null', 'r');
+                if ($cwd !== null) {
+                    chdir($cwd);
                 }
-            }
 
-            pcntl_exec('/bin/sh', ['-c', $shell.'exec "$@" >'.escapeshellarg($out).' 2>'.escapeshellarg($err), 'sh', PHP_BINARY, ...$php, self::ARTISAN, 'queue:work', '--queue={high},default', ...$args], $env);
-            posix_kill(getmypid(), SIGKILL);
+                if ($crowded) {
+                    for ($fd = 3; $fd <= 12; $fd++) {
+                        $GLOBALS['__crowd'][] = fopen('/dev/null', 'r');
+                    }
+                }
+
+                pcntl_exec('/bin/sh', ['-c', $shell.'exec "$@" >'.escapeshellarg($out).' 2>'.escapeshellarg($err), 'sh', PHP_BINARY, ...$php, self::ARTISAN, 'queue:work', '--queue={high},default', ...$args], $env);
+            } finally {
+                posix_kill(getmypid(), SIGKILL); // never back into PHPUnit, which would run the rest of the suite here
+            }
         }
 
         $this->stubs[$pid] = true;

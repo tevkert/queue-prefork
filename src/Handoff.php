@@ -9,6 +9,7 @@ use Tevkert\QueuePrefork\Support\EarlyConfig;
 use Tevkert\QueuePrefork\Support\Fd;
 use Tevkert\QueuePrefork\Support\Identity;
 use Tevkert\QueuePrefork\Support\Native;
+use Tevkert\QueuePrefork\Support\Process;
 use Tevkert\QueuePrefork\Support\RuntimeDir;
 use Tevkert\QueuePrefork\Support\Switches;
 use Tevkert\QueuePrefork\Support\TemplateKey;
@@ -442,7 +443,7 @@ final class Handoff
             }
         }
 
-        $launcher = pcntl_fork();
+        $launcher = Process::fork();
 
         if ($launcher === 0) {
             posix_setsid();

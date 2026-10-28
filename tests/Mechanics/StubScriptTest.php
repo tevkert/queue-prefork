@@ -37,12 +37,12 @@ class StubScriptTest extends TestCase
 
     protected function setUp(): void
     {
+        $this->runtime = sys_get_temp_dir().'/qp-stub-'.getmypid().'-'.bin2hex(random_bytes(3));
+        mkdir($this->runtime, 0700);
+
         if (! Native::available()) {
             $this->markTestSkipped('needs FFI to place the connection on fd 3: '.Native::reason());
         }
-
-        $this->runtime = sys_get_temp_dir().'/qp-stub-'.getmypid().'-'.bin2hex(random_bytes(3));
-        mkdir($this->runtime, 0700);
     }
 
     protected function tearDown(): void

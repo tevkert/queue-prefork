@@ -4,6 +4,7 @@ namespace Tevkert\QueuePrefork\Tests\Mechanics;
 
 use PHPUnit\Framework\TestCase;
 use Tevkert\QueuePrefork\Support\Identity;
+use Tevkert\QueuePrefork\Support\Native;
 
 /**
  * The Horizon master forked from a host template, without Laravel: a fake
@@ -26,6 +27,10 @@ class MasterHostTest extends TestCase
     {
         if (PHP_OS_FAMILY !== 'Linux') {
             $this->markTestSkipped('host mode runs on Linux only (MasterHandoff::reasons)');
+        }
+
+        if (! Native::available()) {
+            $this->markTestSkipped('starting a program with only fds 0-2 open needs FFI in the test process: '.Native::reason());
         }
 
         $this->dir = sys_get_temp_dir().'/qpm-'.getmypid().'-'.bin2hex(random_bytes(3));
@@ -201,24 +206,27 @@ class MasterHostTest extends TestCase
         $pid = pcntl_fork();
 
         if ($pid === 0) {
-            foreach (\Tevkert\QueuePrefork\Support\Audit::openFds() as $fd) {
-                if ($fd > 2) {
-                    \Tevkert\QueuePrefork\Support\Native::get()->close($fd);
+            try {
+                foreach (\Tevkert\QueuePrefork\Support\Audit::openFds() as $fd) {
+                    if ($fd > 2) {
+                        Native::get()->close($fd);
+                    }
                 }
-            }
 
-            if ($socket) {
-                $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP); // fds 3 and 4
-                fclose($pair[1]);
-                $GLOBALS['__held'] = $pair[0]; // only fd 3 is left, its peer closed
-            }
+                if ($socket) {
+                    $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP); // fds 3 and 4
+                    fclose($pair[1]);
+                    $GLOBALS['__held'] = $pair[0]; // only fd 3 is left, its peer closed
+                }
 
-            foreach ($ignore as $signal) {
-                pcntl_signal($signal, SIG_IGN); // as nohup or a background job leaves it
-            }
+                foreach ($ignore as $signal) {
+                    pcntl_signal($signal, SIG_IGN); // as nohup or a background job leaves it
+                }
 
-            pcntl_exec('/bin/sh', ['-c', 'exec "$@" >'.escapeshellarg($out).' 2>'.escapeshellarg($err), 'sh', PHP_BINARY, self::MASTER, 'horizon'], $env);
-            posix_kill(getmypid(), SIGKILL);
+                pcntl_exec('/bin/sh', ['-c', 'exec "$@" >'.escapeshellarg($out).' 2>'.escapeshellarg($err), 'sh', PHP_BINARY, self::MASTER, 'horizon'], $env);
+            } finally {
+                posix_kill(getmypid(), SIGKILL); // never back into PHPUnit, which would run the rest of the suite here
+            }
         }
 
         $this->started[$pid] = true;

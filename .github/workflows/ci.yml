@@ -26,6 +26,7 @@ jobs:
   tests:
     name: PHP ${{ matrix.php }} · Laravel ${{ matrix.laravel }} · Horizon ${{ matrix.horizon }}${{ matrix.ffi == 'off' && ' · FFI off' || '' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -37,14 +38,16 @@ jobs:
           - php: '8.2'
             laravel: '13'   # Laravel 13 needs PHP 8.3+
         include:
-          - { php: '8.4', laravel: '13', horizon: tested, ffi: 'off' }   # queue:work's shared-log mode
+          - { php: '8.4', laravel: '13', horizon: tested, ffi: 'off' }   # the package without FFI; Mechanics needs it and skips (every leg covers shared-log mode)
     steps:
       - uses: actions/checkout@v4
 
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: pcntl, posix, opcache, ${{ matrix.ffi == 'off' && ':ffi' || 'ffi' }}
+          # Only what the package and its tests need: the runner's default set includes zmq, which holds an
+          # eventfd from startup that a template refuses to fork with.
+          extensions: none, ctype, curl, dom, filter, iconv, json, libxml, mbstring, openssl, pcntl, pdo, phar, posix, tokenizer, xml, xmlwriter, zip, opcache${{ matrix.ffi == 'on' && ', ffi' || '' }}
           coverage: none
           tools: composer:v2
 
@@ -75,6 +78,7 @@ jobs:
   macos:
     name: macOS · PHP 8.4 · Laravel 13
     runs-on: macos-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2

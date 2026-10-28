@@ -6,6 +6,7 @@ use Tevkert\QueuePrefork\Runtime;
 use Tevkert\QueuePrefork\Support\Channel;
 use Tevkert\QueuePrefork\Support\CommandLine;
 use Tevkert\QueuePrefork\Support\Identity;
+use Tevkert\QueuePrefork\Support\Process;
 use Tevkert\QueuePrefork\Support\StatusFiles;
 use Throwable;
 
@@ -106,7 +107,7 @@ final class UnitServer
     {
         $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
         pcntl_sigprocmask(SIG_BLOCK, array_merge(self::RELAY, [SIGCHLD]), $previous);
-        $pid = pcntl_fork();
+        $pid = Process::fork();
 
         if ($pid === 0) {
             @fclose($pair[0]);
@@ -335,7 +336,7 @@ final class UnitServer
         pcntl_sigprocmask(SIG_BLOCK, array_merge(self::RELAY, [SIGCHLD]), $previous);
 
         try {
-            $pid = pcntl_fork();
+            $pid = Process::fork();
         } catch (Throwable) {
             $pid = -1;
         }
