@@ -2,6 +2,7 @@
 
 namespace Tevkert\QueuePrefork;
 
+use RuntimeException;
 use Tevkert\QueuePrefork\Server\Signals;
 use Tevkert\QueuePrefork\Support\Audit;
 use Tevkert\QueuePrefork\Support\CommandLine;
@@ -303,7 +304,16 @@ final class Handoff
     /** Sends the spawn request with this process's stdio and returns the template's final reply. */
     private function requestWorker(string $json): array
     {
-        $this->send($json."\n", true);
+        try {
+            $this->send($json."\n", true);
+        } catch (RuntimeException $e) {
+            // A template turning this connection away (retiring, out of descriptors) replies and closes
+            // without reading it, so the request can fail to send; the reply still says why.
+            $reply = $this->receiveLine(1.0);
+
+            return ($reply['t'] ?? null) === 'refused' ? $reply : throw $e;
+        }
+
         $reply = $this->receiveLine();
 
         if (($reply['t'] ?? null) === 'waiting') {
@@ -548,7 +558,7 @@ final class Handoff
         }
 
         if ($sent < 0) {
-            throw new \RuntimeException('send to the template failed');
+            throw new RuntimeException('send to the template failed');
         }
     }
 
