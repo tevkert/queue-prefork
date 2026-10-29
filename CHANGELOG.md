@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The project uses [Semantic Versioning](https://semver.org/).
 
-## [1.0.4] - 2026-10-30
+## [1.0.4] - 2026-10-29
 
 - **gRPC with fork support:** a template no longer refuses the epoll set and eventfd that gRPC's poller holds from PHP startup when `grpc.enable_fork_support=1` is on, since gRPC rebuilds them in each fork, as it already does its threads. On hosts that load ext-grpc, such as Laravel Cloud, `QUEUE_PREFORK_ALLOW_DESCRIPTORS=anon_inode:*` is no longer needed. Any other descriptor is still flagged.
 - **`queue-prefork:doctor`:** the `queue:work` line includes the extensions a template refuses, so it says "stock" with the reason on a host with New Relic or gRPC without fork support, where it said "prefork" before. In shared-log mode the FFI install line is marked optional rather than a fix.
