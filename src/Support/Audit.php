@@ -14,6 +14,9 @@ final class Audit
     /** Extensions whose threads are fork-aware (allowed by the thread audit). */
     private const FORK_AWARE_THREADS = ['ddtrace', 'elastic_apm'];
 
+    /** What gRPC's poller holds from PHP startup: one epoll set and its wakeup eventfd. */
+    private const GRPC_POLLER = ['anon_inode:[eventpoll]' => 1, 'anon_inode:[eventfd]' => 1];
+
     /**
      * @param  list<int>  $allowedFds  descriptors the package owns (channels)
      * @param  list<string>  $allowedPeers  `allow_descriptors` patterns (fnmatch), matched against classify()'s
@@ -22,7 +25,7 @@ final class Audit
      */
     public static function descriptors(array $allowedFds, array $allowedPeers = []): array
     {
-        $reasons = [];
+        $kinds = [];
 
         foreach (self::listFds() as $fd) {
             if ($fd <= 2 || in_array($fd, $allowedFds, true)) {
@@ -31,20 +34,52 @@ final class Audit
 
             $kind = self::classify($fd);
 
-            if ($kind === null) {
-                continue;
+            if ($kind !== null) {
+                $kinds[$fd] = $kind;
             }
+        }
 
+        return self::unsafe($kinds, $allowedPeers, self::forkAwareDescriptors());
+    }
+
+    /**
+     * @param  array<int, string>  $kinds  classify()'s description of each flagged descriptor
+     * @param  list<string>  $allowedPeers  `allow_descriptors` patterns
+     * @param  array<string, int>  $excused  how many descriptors of a description fork-aware extensions own
+     * @return list<string>
+     */
+    public static function unsafe(array $kinds, array $allowedPeers, array $excused): array
+    {
+        $reasons = [];
+
+        foreach ($kinds as $fd => $kind) {
             foreach ($allowedPeers as $pattern) {
                 if (fnmatch($pattern, $kind)) {
                     continue 2;
                 }
             }
 
+            if (($excused[$kind] ?? 0) > 0) {
+                $excused[$kind]--;
+
+                continue;
+            }
+
             $reasons[] = "fd {$fd}: {$kind}";
         }
 
         return $reasons;
+    }
+
+    /**
+     * Descriptors excused because their extension rebuilds them in a forked child. gRPC with fork support
+     * does that for its poller, as it restarts its threads; anything beyond the poller is still flagged.
+     *
+     * @return array<string, int>
+     */
+    public static function forkAwareDescriptors(): array
+    {
+        return extension_loaded('grpc') && ini_get('grpc.enable_fork_support') ? self::GRPC_POLLER : [];
     }
 
     /** @return list<string> reasons; empty when single-threaded or only fork-aware threads */
