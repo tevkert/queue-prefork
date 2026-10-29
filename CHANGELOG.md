@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.4] - 2026-10-30
+
+- **gRPC with fork support:** a template no longer refuses the epoll set and eventfd that gRPC's poller holds from PHP startup when `grpc.enable_fork_support=1` is on, since gRPC rebuilds them in each fork, as it already does its threads. On hosts that load ext-grpc, such as Laravel Cloud, `QUEUE_PREFORK_ALLOW_DESCRIPTORS=anon_inode:*` is no longer needed. Any other descriptor is still flagged.
+- **`queue-prefork:doctor`:** the `queue:work` line includes the extensions a template refuses, so it says "stock" with the reason on a host with New Relic or gRPC without fork support, where it said "prefork" before. In shared-log mode the FFI install line is marked optional rather than a fix.
+- **`queue-prefork:doctor` in containers:** run with `docker exec`, the doctor isn't PID 1 itself, so it said "prefork" for a container whose command is `php artisan horizon` or `queue:work`, which runs stock as PID 1. It now reads PID 1's command line and reports that, with the fix: give the container an init.
+- **README:** a Laravel Cloud section with measurements, Docker's `init: true` for a container that runs Horizon or `queue:work` as its command, and the doctor moved to after the deploy, on a server the workers run on.
+
 ## [1.0.3] - 2026-10-29
 
 - **The fallback reason:** a template that turns a worker away before reading its request (out of descriptors, or retiring during a deploy) closes the connection at once, so the request can fail to send. The stub now reads the template's reply and reports its reason instead of "send to the template failed". The worker falls back to stock as before.
@@ -27,6 +34,7 @@ First release: Laravel queue workers run as forks of a template process that sha
 - **Commands:** `queue-prefork:doctor`, `queue-prefork:status`, `queue-prefork:switch` and `queue-prefork:retire`.
 - Developed as `horizon-prefork` before the first release, which only covered Horizon.
 
+[1.0.4]: https://github.com/tevkert/queue-prefork/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/tevkert/queue-prefork/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/tevkert/queue-prefork/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/tevkert/queue-prefork/compare/v1.0.0...v1.0.1

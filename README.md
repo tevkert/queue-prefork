@@ -6,7 +6,7 @@
 
 ![Laravel Horizon with queue-prefork, typical jobs: Horizon memory −81 %, memory per worker −90 %, CPU −44 %, new workers ready 5.8× faster. Drop-in: composer require, then php artisan horizon:terminate.](art/savings-horizon.svg)
 
-[Why](#why-queue-workers-use-so-much-memory) · [What it does](#what-queue-prefork-does) · [Requirements](#requirements) · [Install](#install) · [How it works](#how-it-works) · [Commands](#commands) · [FAQ](#faq) · [Configuration](#configuration) · [Benchmarks](#benchmarks) · [Limitations](#limitations-and-differences-from-stock) · [Troubleshooting](#troubleshooting) · [Development](#development) · [Security](#security)
+[Why](#why-queue-workers-use-so-much-memory) · [What it does](#what-queue-prefork-does) · [Requirements](#requirements) · [Install](#install) · [Laravel Cloud](#laravel-cloud) · [How it works](#how-it-works) · [Commands](#commands) · [FAQ](#faq) · [Configuration](#configuration) · [Benchmarks](#benchmarks) · [Limitations](#limitations-and-differences-from-stock) · [Troubleshooting](#troubleshooting) · [Development](#development) · [Security](#security)
 
 ## Why queue workers use so much memory
 
@@ -58,6 +58,7 @@ If any safety check fails, workers run exactly as stock and the package tells yo
   | Alpine | `apk add php83-ffi` (your PHP version) |
   | Official Docker `php` images | `docker-php-ext-install ffi` (needs `libffi-dev`) |
   | macOS: Herd, Homebrew | shipped and enabled |
+  | Laravel Cloud | not available, so the shared log is used ([see Laravel Cloud](#laravel-cloud)) |
 
   Without FFI, Linux workers still fork, with their output in a shared log ([see below](#plain-queuework)), and macOS workers run stock.
 - **For Horizon:** Horizon 5.23 or newer, up to the newest tested minor (currently **5.50**).
@@ -66,16 +67,33 @@ If any safety check fails, workers run exactly as stock and the package tells yo
 
 ```bash
 composer require tevkert/queue-prefork
-php artisan queue-prefork:doctor      # how your workers would run here, and why
 ```
 
-It's on as soon as it's installed. There's no service provider to register and nothing to change in your queue or Horizon config. Before you restart, `queue-prefork:status` lists your workers with their memory, so you can record a stock baseline. Then restart your workers so they start forked:
+It's on as soon as it's installed. There's no service provider to register and nothing to change in your queue or Horizon config.
+
+**Then, on a server your workers run on** (staging or production), after the deploy:
 
 ```bash
+php artisan queue-prefork:doctor      # how your workers would run on this host, and why
+php artisan queue-prefork:status      # your workers' memory before the restart: a stock baseline
 php artisan queue:restart             # plain queue:work: your process manager starts them again
 php artisan horizon:terminate         # Horizon
 php artisan queue-prefork:status      # mode, templates and memory per process
 ```
+
+Run the doctor where the workers run, as their user, with the same `php` options they start with. It checks that host's PHP, its extensions and limits, so on your laptop it only tells you about your laptop.
+
+**In Docker,** a container whose command is `php artisan horizon` or `queue:work` runs it as PID 1, and PID 1 runs stock. Give the container an init:
+
+```yaml
+services:
+  horizon:
+    image: your-app
+    command: php artisan horizon
+    init: true        # Docker's tini becomes PID 1, and Horizon its child
+```
+
+`docker run --init` does the same, and so does `ENTRYPOINT ["tini", "--"]` in your image. Images that start supervisord or s6 already have one. Run the doctor inside the container (`docker compose exec horizon php artisan queue-prefork:doctor`); it reports when PID 1 is the worker itself. A container with a single `queue:work` saves nothing, since there's nothing to share: run several workers in one container, under supervisord, or use Horizon.
 
 **To turn it off:**
 - **For good:** set `QUEUE_PREFORK=false` in `.env`, or `QUEUE_PREFORK_QUEUE_WORK=false` or `QUEUE_PREFORK_HORIZON=false` for one mode. As with any setting, deploy, run `php artisan config:cache` if you cache your config, and restart your workers.
@@ -83,6 +101,30 @@ php artisan queue-prefork:status      # mode, templates and memory per process
 
 > [!IMPORTANT]
 > **Your config is the permanent setting.** The switch is a quick override for one server. With Horizon it lives in Redis, per hostname, so a Redis flush or a new hostname (common in containers) drops it. Without Horizon it's an off file in `storage/framework`.
+
+## Laravel Cloud
+
+Horizon runs forked on Laravel Cloud's app and worker clusters, with one change. Cloud's PHP loads ext-grpc, which starts threads when PHP starts, so start Horizon as a custom background process with gRPC's fork support on:
+
+```bash
+php -d grpc.enable_fork_support=1 artisan horizon
+```
+
+- **Without the flag, Horizon runs stock,** and the doctor says why: `ext-grpc without grpc.enable_fork_support=1`. Run the doctor with the same flag, from Cloud's Commands tab: `php -d grpc.enable_fork_support=1 artisan queue-prefork:doctor`. Commands run on an app instance; worker clusters have the same runtime.
+- **`queue:work`:** Cloud's built-in queue worker can't take PHP options, so use a custom background process, `php -d grpc.enable_fork_support=1 artisan queue:work …`. Cloud's PHP has no FFI, so the workers use the shared log: their console output (each job's RUNNING and DONE lines) goes to `storage/logs/queue-prefork-*.log` on the instance's disk instead of Cloud's logs. Your app's log entries still reach Cloud's logs. `QUEUE_PREFORK_OUTPUT=stock` keeps those workers stock instead.
+- **Managed queues** run each worker in its own pod, so there's nothing to share. Queue-prefork is for Horizon or `queue:work` running on your own clusters.
+
+**Measured on Cloud,** with a fresh Laravel 13 app and the same everyday job mix in both modes, 600 jobs a minute:
+
+| Flex 2 GB instance, filled to ~90 % of its memory | Stock | Prefork |
+|---|---:|---:|
+| Horizon workers running | 27 | 198–210 |
+| Memory per worker | ~56 MB | ~7–8 MB |
+| CPU to start a worker | 0.51 s | 0.16 s |
+
+- **Stock workers cost more on Cloud than elsewhere:** its CLI runs with `opcache.enable_cli` on, so every stock process compiles the app into its own private opcache.
+- **210 stock workers needed a Pro 16 GB instance** (11.8 GB in use); with prefork they fit on the Flex 2 GB one.
+- No job failed in either mode, on app and worker clusters alike.
 
 ## How it works
 
@@ -111,7 +153,7 @@ Each `queue:work` process hands itself to a shared template before Laravel boots
 
 ### Fork safety
 
-Before forking, a template audits itself: sockets, epoll, eventfd or extra threads that extensions open at startup mean stock workers. ddtrace, Elastic APM and gRPC with fork support are allowed; Horizon runs stock with New Relic, gRPC without fork support, datadog-profiling and Blackfire.
+Before forking, a template audits itself: sockets, epoll, eventfd or extra threads that extensions open at startup mean stock workers. ddtrace, Elastic APM and gRPC with fork support (`grpc.enable_fork_support=1`, which rebuilds its threads and poller in each fork) are allowed; workers run stock with New Relic, gRPC without fork support, datadog-profiling and Blackfire.
 
 ### Deploys
 
@@ -215,7 +257,7 @@ No job failed, and every run's last hour was within a point of its median. Prefo
 
 ## Limitations and differences from stock
 
-- **Laravel Cloud and Kubernetes are untested.**
+- **Kubernetes is untested.**
 - **`ps` looks different.** A `queue:work` program's pid is `/bin/sh …/stub-<hash>.sh`, and its worker is a child of `php [qp-template:<key>]`. On Linux, Horizon's pid is `php [hp-template:host]`, with `php artisan horizon` as its child, and each supervisor has a fork server, whose pid `horizon:supervisors` shows.
 - **If a `queue:work` template is killed,** its workers finish their jobs, but their programs then exit 1; your process manager restarts them on a new template. A worker killed by a core-dumping signal (SIGSEGV, SIGABRT) exits 128+n rather than "terminated by SIGSEGV".
 - **`queue:work` in a terminal:** Ctrl-Z suspends only the stub, so the worker keeps taking jobs until `fg` or Ctrl-C. Under a process manager this never applies.
@@ -232,13 +274,14 @@ No job failed, and every run's last hour was within a point of its median. Prefo
 
 | Reason | Fix |
 |---|---|
-| `the master runs as PID 1`, or a worker does | Start it under `tini`, `dumb-init` or supervisord (Docker: `--init`). |
+| `the master runs as PID 1`, or a worker does | Start it under `tini`, `dumb-init` or supervisord (Docker: `init: true` or `--init`, [see Install](#install)). |
 | `pcntl_fork() is unavailable` (or another function) | Enable `pcntl` and `posix` for the **CLI** PHP, and remove them from its `disable_functions`. |
 | FFI is unusable | Install or enable FFI for the CLI; the doctor prints the line for your platform. |
 | `Horizon 5.x is newer than the tested 5.y` | Update this package, or set `allow_untested_horizon`. |
 | `the app binds Laravel\Horizon\…` | Your app replaces one of Horizon's classes that prefork overrides. Prefork can't combine with that. |
 | `entry script … calls getopt()` | Read `$_SERVER['argv']` instead. |
 | `probe of … failed` | An entry script doesn't load Composer's autoloader or boot Artisan. The error output is in the reason. |
+| `ext-grpc without grpc.enable_fork_support=1` | Turn on gRPC's fork support for the CLI: `grpc.enable_fork_support=1` in its ini, or `php -d grpc.enable_fork_support=1 artisan …` in the worker's command ([Laravel Cloud](#laravel-cloud)). Or turn ext-grpc off for the CLI if your workers don't use it. |
 | `template unsafe: fd N: …` | An extension opened a socket, eventfd or thread at PHP startup (php-zmq holds an eventfd, for one). Turn it off for the CLI if your workers don't use it, or, if you know it's fork-safe, allow it with `QUEUE_PREFORK_ALLOW_DESCRIPTORS`. |
 | One supervisor shows `crash breaker` | Its workers died 5 times before their first loop. The app can't boot in a worker, which would fail in stock too, so check the log. |
 
