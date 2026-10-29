@@ -27,9 +27,9 @@ class DoctorCommand extends Command
         Settings::mergeDefaults($this->laravel);
         $horizon = class_exists(MasterSupervisor::class);
         $release = realpath(base_path()) ?: base_path();
-        $reasons = $horizon ? [...Switches::off($release, 'horizon'), ...Preflight::check($this->laravel)] : [];
-        $queueWork = Handoff::readiness($release);
-        $queueWork['install'] = $queueWork['ffi'] !== null ? self::ffiInstall() : null;
+        $pidOne = PHP_OS_FAMILY === 'Linux' ? str_replace("\0", ' ', (string) @file_get_contents('/proc/1/cmdline')) : '';
+        $reasons = $horizon ? [...Switches::off($release, 'horizon'), ...Preflight::check($this->laravel), ...self::pidOne($pidOne, 'horizon')] : [];
+        $queueWork = self::queueWork($release, self::pidOne($pidOne, 'queue:work'));
         $warnings = [...self::hostWarnings($horizon), ...$this->earlyMismatches($release)];
 
         $hosting = $horizon ? MasterHandoff::reasons($release) : [];
@@ -62,9 +62,11 @@ class DoctorCommand extends Command
         });
 
         if ($queueWork['reasons'] !== [] || $queueWork['ffi'] !== null) {
+            $install = $queueWork['ffi_needed'] ? 'Fix' : 'Optional, to keep each worker\'s output in its own program\'s log';
+
             $this->components->bulletList([
                 ...$queueWork['reasons'],
-                ...($queueWork['ffi'] !== null ? ["FFI: {$queueWork['ffi']}", "Fix: {$queueWork['install']}"] : []),
+                ...($queueWork['ffi'] !== null ? ["FFI: {$queueWork['ffi']}", "{$install}: {$queueWork['install']}"] : []),
             ]);
         }
 
@@ -73,6 +75,26 @@ class DoctorCommand extends Command
         }
 
         return $result['ready'] ? 0 : 1;
+    }
+
+    /**
+     * How `queue:work` would run here: the stub's checks, plus the extensions its template refuses at
+     * startup and a worker that is the container's PID 1. FFI is needed only where nothing else can run
+     * the workers forked.
+     *
+     * @param  list<string>  $pidOne
+     */
+    private static function queueWork(string $release, array $pidOne): array
+    {
+        $queueWork = Handoff::readiness($release);
+        $queueWork['ffi_needed'] = $queueWork['mode'] === null && $queueWork['ffi'] !== null;
+        $stock = $queueWork['mode'] !== null ? [...Preflight::extensions([]), ...$pidOne] : [];
+
+        if ($stock !== []) {
+            $queueWork = ['mode' => null, 'reasons' => $stock] + $queueWork;
+        }
+
+        return $queueWork + ['install' => $queueWork['ffi'] !== null ? self::ffiInstall() : null];
     }
 
     /** @return list<string> */
@@ -94,6 +116,21 @@ class DoctorCommand extends Command
         }
 
         return $warnings;
+    }
+
+    /**
+     * A container whose command is the Horizon master or a `queue:work` worker runs it as PID 1, which
+     * runs stock. The doctor itself (run with `docker exec`) isn't PID 1, so its own checks can't see that.
+     *
+     * @param  string  $cmdline  PID 1's command line
+     * @param  string  $command  horizon or queue:work
+     * @return list<string>
+     */
+    public static function pidOne(string $cmdline, string $command): array
+    {
+        $theirs = StatusCommand::roleOf($cmdline) !== null && preg_match('# '.preg_quote($command, '#').'(?: |$)#', $cmdline);
+
+        return $theirs ? ['PID 1 is '.trim($cmdline).', and PID 1 runs stock: give the container an init (Docker: init: true or docker run --init)'] : [];
     }
 
     /**
