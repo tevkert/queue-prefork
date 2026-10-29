@@ -8,6 +8,8 @@
 
 [Why](#why-queue-workers-use-so-much-memory) · [What it does](#what-queue-prefork-does) · [Requirements](#requirements) · [Install](#install) · [Laravel Cloud](#laravel-cloud) · [How it works](#how-it-works) · [Commands](#commands) · [FAQ](#faq) · [Configuration](#configuration) · [Benchmarks](#benchmarks) · [Limitations](#limitations-and-differences-from-stock) · [Troubleshooting](#troubleshooting) · [Development](#development) · [Security](#security)
 
+Questions, bug reports, numbers from your app: [open an issue](https://github.com/tevkert/queue-prefork/issues), or find me on X at [@tevkert](https://x.com/tevkert).
+
 ## Why queue workers use so much memory
 
 Every queue worker is a separate PHP process: each `queue:work`, and each Horizon worker and supervisor. Each one boots your whole Laravel app and compiles its code into its own private memory before it runs a single job. That's often 50–80 MB per process with a typical set of packages, and nearly all of it is the same in every process. On a small VPS, the queue workers are often the biggest thing on the server.
