@@ -17,7 +17,7 @@ class PreloadTest extends TestCase
         foreach ($files as $file) {
             $source = $file->getExtension() === 'php' ? (string) file_get_contents($file->getPathname()) : '';
 
-            if (preg_match('/^namespace (\S+);/m', $source, $ns) && preg_match('/^(?:final |abstract )?class (\w+)(?! extends)\b/m', $source, $class)) {
+            if (preg_match('/^namespace (\S+);/m', $source, $ns) && preg_match('/^(?:final |abstract )?class (\w+)(?! extends (?!php_user_filter\b))\b/m', $source, $class)) {
                 $expected[] = $ns[1].'\\'.$class[1];
             }
         }

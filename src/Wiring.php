@@ -14,6 +14,7 @@ use Tevkert\QueuePrefork\Console\ProbeCommand;
 use Tevkert\QueuePrefork\Horizon\PreforkHorizonCommand;
 use Tevkert\QueuePrefork\Horizon\PreforkSupervisorFactory;
 use Tevkert\QueuePrefork\Server\RoleGuard;
+use Tevkert\QueuePrefork\Support\LineBufferedOutput;
 use Tevkert\QueuePrefork\Support\StatusFiles;
 use Tevkert\QueuePrefork\Support\Switches;
 use Throwable;
@@ -76,6 +77,12 @@ final class Wiring
             // The package was updated under a running template: this child mixes versions. End it;
             // the unit is replaced from a fresh template.
             RoleGuard::shim(72);
+        }
+
+        if (Runtime::$output !== 'normal') {
+            // Forked Horizon processes share the master's stdout, and shared-log workers one log file:
+            // keep each process's lines whole. A normal-mode queue:work worker has its stub's own stdio.
+            LineBufferedOutput::attachToStdout();
         }
 
         if (Runtime::$role === 'horizon-master') {
