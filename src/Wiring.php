@@ -79,8 +79,11 @@ final class Wiring
             RoleGuard::shim(72);
         }
 
-        // Forked processes share the stdout they inherited; keep each one's lines whole.
-        LineBufferedOutput::attachToStdio();
+        if (Runtime::$output !== 'normal') {
+            // Forked Horizon processes share the master's stdout, and shared-log workers one log file:
+            // keep each process's lines whole. A normal-mode queue:work worker has its stub's own stdio.
+            LineBufferedOutput::attachToStdout();
+        }
 
         if (Runtime::$role === 'horizon-master') {
             self::hostedMaster($app);
