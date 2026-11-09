@@ -21,9 +21,9 @@ final class Runtime
         Server\SharedLog::class, Server\Signals::class, Server\Template::class, Server\UnitServer::class,
         Server\WorkServer::class, Server\WorkerContext::class, Support\Audit::class, Support\Channel::class,
         Support\CommandLine::class, Support\DotEnv::class, Support\EarlyConfig::class, Support\Fd::class,
-        Support\Identity::class, Support\LogTargets::class, Support\Native::class, Support\Process::class,
-        Support\RuntimeDir::class, Support\StatusFiles::class, Support\Switches::class, Support\TemplateKey::class,
-        Support\WorkTemplates::class,
+        Support\Identity::class, Support\LineBufferedOutput::class, Support\LogTargets::class, Support\Native::class,
+        Support\Process::class, Support\RuntimeDir::class, Support\StatusFiles::class, Support\Switches::class,
+        Support\TemplateKey::class, Support\WorkTemplates::class,
     ];
 
     /** template | fork-server | unit-loop | worker | horizon-master, or null in an ordinary process. */

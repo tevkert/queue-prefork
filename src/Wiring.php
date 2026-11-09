@@ -14,6 +14,7 @@ use Tevkert\QueuePrefork\Console\ProbeCommand;
 use Tevkert\QueuePrefork\Horizon\PreforkHorizonCommand;
 use Tevkert\QueuePrefork\Horizon\PreforkSupervisorFactory;
 use Tevkert\QueuePrefork\Server\RoleGuard;
+use Tevkert\QueuePrefork\Support\LineBufferedOutput;
 use Tevkert\QueuePrefork\Support\StatusFiles;
 use Tevkert\QueuePrefork\Support\Switches;
 use Throwable;
@@ -77,6 +78,9 @@ final class Wiring
             // the unit is replaced from a fresh template.
             RoleGuard::shim(72);
         }
+
+        // Forked processes share the stdout they inherited; keep each one's lines whole.
+        LineBufferedOutput::attachToStdio();
 
         if (Runtime::$role === 'horizon-master') {
             self::hostedMaster($app);
