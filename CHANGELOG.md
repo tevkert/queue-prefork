@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.5] - 2026-11-09
+
+- **Horizon log lines stay whole:** forked Horizon processes share the master's stdout, and `queue:work` writes each job line in three or four pieces, so with several workers busy the pieces interleaved mid-line, which broke anything that reads the log line by line. Each forked process now holds its stdout until the newline and writes the line in one piece (up to 4 KB). Shared-log `queue:work` workers get the same. Workers with their own stdout, and stderr everywhere, are as before. Contributed by Dan Krieger (#1, #2).
+- **README:** the line-at-a-time stdout is listed under "Limitations and differences from stock".
+
 ## [1.0.4] - 2026-10-29
 
 - **gRPC with fork support:** a template no longer refuses the epoll set and eventfd that gRPC's poller holds from PHP startup when `grpc.enable_fork_support=1` is on, since gRPC rebuilds them in each fork, as it already does its threads. On hosts that load ext-grpc, such as Laravel Cloud, `QUEUE_PREFORK_ALLOW_DESCRIPTORS=anon_inode:*` is no longer needed. Any other descriptor is still flagged.
@@ -34,6 +39,7 @@ First release: Laravel queue workers run as forks of a template process that sha
 - **Commands:** `queue-prefork:doctor`, `queue-prefork:status`, `queue-prefork:switch` and `queue-prefork:retire`.
 - Developed as `horizon-prefork` before the first release, which only covered Horizon.
 
+[1.0.5]: https://github.com/tevkert/queue-prefork/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/tevkert/queue-prefork/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/tevkert/queue-prefork/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/tevkert/queue-prefork/compare/v1.0.1...v1.0.2
