@@ -36,7 +36,7 @@
         "laravel/ai": "^0.10.2",
         "laravel/fortify": "^1.37",
         "laravel/framework": "^13.17",
-        "laravel/horizon": "5.50.*",
+        "laravel/horizon": "5.52.*",
         "laravel/nightwatch": "^1.28",
         "laravel/octane": "^2.18",
         "laravel/pennant": "^1.24",

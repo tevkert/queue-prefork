@@ -69,7 +69,7 @@ class PreforkSupervisor extends Supervisor
             return;
         }
 
-        $this->terminate();
+        $this->terminate(0);
     }
 
     protected function shouldWait()

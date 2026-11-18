@@ -11,6 +11,7 @@ use Laravel\Horizon\Events\MasterSupervisorLooped;
 use Laravel\Horizon\Events\SupervisorLooped;
 use Laravel\Horizon\SupervisorFactory;
 use Tevkert\QueuePrefork\Console\ProbeCommand;
+use Tevkert\QueuePrefork\Horizon\Compatibility;
 use Tevkert\QueuePrefork\Horizon\PreforkHorizonCommand;
 use Tevkert\QueuePrefork\Horizon\PreforkSupervisorFactory;
 use Tevkert\QueuePrefork\Server\RoleGuard;
@@ -50,9 +51,21 @@ final class Wiring
         Settings::mergeDefaults($app);
         $app->singleton(Master::class);
 
-        if (self::horizonOff($app) === null) {
-            $app->bind(HorizonCommand::class, PreforkHorizonCommand::class);
+        if (self::horizonOff($app) !== null) {
+            return;
         }
+
+        $incompatible = Compatibility::commandReasons();
+
+        if ($incompatible !== []) {
+            // Loading PreforkHorizonCommand would end in a fatal error. Preflight reports the full list
+            // (queue-prefork:doctor); the master runs stock.
+            error_log('queue-prefork: Horizon runs stock: '.implode('; ', $incompatible));
+
+            return;
+        }
+
+        $app->bind(HorizonCommand::class, PreforkHorizonCommand::class);
     }
 
     /** Why Horizon runs stock: an off switch (environment, .env or file), the runtime switch or the config. */
@@ -110,6 +123,16 @@ final class Wiring
 
     private static function supervisorLoop(Application $app): void
     {
+        $incompatible = Compatibility::reasons();
+
+        if ($incompatible !== []) {
+            // This loop booted another Horizon than the master checked (a deploy in between): never load
+            // the subclasses. Leaving before hello, with 71, has the master run this supervisor stock and
+            // report it (UnitStock); the details go to the log here.
+            error_log('queue-prefork: supervisor runs stock: '.implode('; ', $incompatible));
+            RoleGuard::shim(71);
+        }
+
         $app->bind(SupervisorFactory::class, PreforkSupervisorFactory::class);
         $app['events']->listen(SupervisorLooped::class, fn () => Link::tick());
         Link::hello();
@@ -145,6 +168,12 @@ final class Wiring
 
             if ($off !== null) {
                 Master::handBack($off);
+            }
+
+            $incompatible = Compatibility::commandReasons();
+
+            if ($incompatible !== []) {
+                Master::handBack(implode('; ', $incompatible));
             }
 
             $app->singleton(Master::class);

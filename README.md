@@ -63,7 +63,7 @@ If any safety check fails, workers run exactly as stock and the package tells yo
   | Laravel Cloud | not available, so the shared log is used ([see Laravel Cloud](#laravel-cloud)) |
 
   Without FFI, Linux workers still fork, with their output in a shared log ([see below](#plain-queuework)), and macOS workers run stock.
-- **For Horizon:** Horizon 5.23 or newer, up to the newest tested minor (currently **5.50**).
+- **For Horizon:** Horizon 5.23 or newer, any 5.x release. Each new Horizon release is tested the day it comes out.
 
 ## Install
 
@@ -229,7 +229,6 @@ For a quick off on one host, without a re-cache, use `queue-prefork:switch disab
 | `hello_timeout` | 15 | Seconds a new supervisor loop gets to boot before that supervisor goes stock. |
 | `spawn_timeout` | 10 | Seconds before an unanswered request to a template or fork server counts as overdue. Pauses (swap, SIGSTOP, VM suspend) don't count. |
 | `exit_grace` | 15 | Seconds a forked loop or worker gets for its shutdown code after its command finished. |
-| `allow_untested_horizon` | `false` | Allow Horizon minors newer than the tested one. |
 | `allow_unprofiled_workers` | `false` | Allow prefork with datadog-profiling on. Forked children aren't profiled. |
 
 **The template's opcache settings are fixed:** `opcache.enable_cli=1`, `validate_timestamps=1`, `revalidate_freq=0` and `save_comments=1`, with preload and JIT off, whatever your `php.ini` says. Your web server's and other commands' opcache settings are untouched. An `auto_prepend_file` from your CLI ini runs once in every forked worker, as in a fresh process.
@@ -263,7 +262,7 @@ No job failed, and every run's last hour was within a point of its median. Prefo
 - **`ps` looks different.** A `queue:work` program's pid is `/bin/sh …/stub-<hash>.sh`, and its worker is a child of `php [qp-template:<key>]`. On Linux, Horizon's pid is `php [hp-template:host]`, with `php artisan horizon` as its child, and each supervisor has a fork server, whose pid `horizon:supervisors` shows.
 - **If a `queue:work` template is killed,** its workers finish their jobs, but their programs then exit 1; your process manager restarts them on a new template. A worker killed by a core-dumping signal (SIGSEGV, SIGABRT) exits 128+n rather than "terminated by SIGSEGV".
 - **`queue:work` in a terminal:** Ctrl-Z suspends only the stub, so the worker keeps taking jobs until `fg` or Ctrl-C. Under a process manager this never applies.
-- **Tested Horizon minors only.** The package overrides a few Horizon internals (`AddSupervisor`, `SupervisorFactory`, `Supervisor` and `ProcessPool`), so a newer minor runs stock until a release raises the limit; `allow_untested_horizon` lifts the check at your own risk.
+- **Horizon internals.** The package overrides a few Horizon internals (`AddSupervisor`, `SupervisorFactory`, `Supervisor` and `ProcessPool`). Before using them, it checks that they still look exactly as in every Horizon from 5.23 to 5.52. If a new Horizon release changes any of them, Horizon runs stock and `queue-prefork:doctor` names what changed, until a release of this package supports it. Each new Horizon release is tested the day it comes out.
 - **The forked Horizon master is Linux-only.** On macOS only supervisors and workers are forked.
 - **Forked Horizon processes and shared-log workers write stdout a line at a time.** They share one stdout or log file, so each process holds a line until its newline (up to 4 KB) and writes it in one piece, which keeps lines from different workers apart. A partial line shows up once it's finished, and output that doesn't go through PHP's `STDOUT` stream (`echo`, `dump()`, subprocesses) isn't held, so it can come before it. Stderr is written as in stock.
 - **Shared-memory extensions are shared by the whole tree,** as under PHP-FPM: APCu with `apc.enable_cli`, Relay and sysvshm.
@@ -280,7 +279,7 @@ No job failed, and every run's last hour was within a point of its median. Prefo
 | `the master runs as PID 1`, or a worker does | Start it under `tini`, `dumb-init` or supervisord (Docker: `init: true` or `--init`, [see Install](#install)). |
 | `pcntl_fork() is unavailable` (or another function) | Enable `pcntl` and `posix` for the **CLI** PHP, and remove them from its `disable_functions`. |
 | FFI is unusable | Install or enable FFI for the CLI; the doctor prints the line for your platform. |
-| `Horizon 5.x is newer than the tested 5.y` | Update this package, or set `allow_untested_horizon`. |
+| `this Horizon changed what the package extends: …` | Update this package. If no release supports your Horizon yet, please [open an issue](https://github.com/tevkert/queue-prefork/issues). |
 | `the app binds Laravel\Horizon\…` | Your app replaces one of Horizon's classes that prefork overrides. Prefork can't combine with that. |
 | `entry script … calls getopt()` | Read `$_SERVER['argv']` instead. |
 | `probe of … failed` | An entry script doesn't load Composer's autoloader or boot Artisan. The error output is in the reason. |
@@ -310,7 +309,7 @@ composer test:integration
 
 CI runs the unit and mechanics suites on PHP 8.2–8.5 × Laravel 11–13 × the oldest and newest supported Horizon minors, plus macOS, and the Docker suites nightly.
 
-**Ground rules:** workers behave as stock, and only how their processes are created changes. Templates and fork servers never run app code. Every behaviour change comes with a test against stock. A Horizon minor joins the tested range (`Preflight::TESTED_HORIZON_MINOR`) only after the Docker suites pass on it.
+**Ground rules:** workers behave as stock, and only how their processes are created changes. Templates and fork servers never run app code. Every behaviour change comes with a test against stock. Prefork runs on any Horizon 5 whose overridden classes match `Horizon\Compatibility`. The `New Horizon release` workflow runs the full CI, Docker suites included, once on each new Horizon release, on the day it appears on Packagist.
 
 ## Security
 

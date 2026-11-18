@@ -214,6 +214,6 @@ heavy jobs (image renditions, LLM calls, Livewire renders, bulk maintenance):
 - The image keeps `php.ini-production` with `opcache.enable_cli` at its default (off), as on a stock
   Forge server. One override, `php/conf.d/zz-cli.ini`: `memory_limit=-1`, as Ubuntu's CLI php.ini has.
   Otherwise a worker would die at 128M before Horizon's own `memory` check (128 MB) recycles it.
-- `workbench/composer.json` pins `laravel/horizon` to `5.50.*`.
+- `workbench/composer.json` pins `laravel/horizon` to `5.52.*`.
 - The package is a Composer path repository (`..`, symlinked), so changes to `src/` need no reinstall;
   restart Horizon (`docker compose restart app-prefork`) to load them.

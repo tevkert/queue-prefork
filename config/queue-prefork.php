@@ -43,5 +43,4 @@ return [
     'exit_grace' => 15,
 
     'allow_unprofiled_workers' => false,
-    'allow_untested_horizon' => false,
 ];

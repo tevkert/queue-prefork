@@ -1,0 +1,142 @@
+name: New Horizon release
+
+# Once a day, a check of about ten seconds: is there a Horizon 5.x release on Packagist that this workflow
+# hasn't tested yet? If so, the whole CI runs against it (Unit and Mechanics on every PHP and Laravel the
+# release supports, and the Docker suites), the same day. Each release is tested once, pass or fail; a
+# failed run emails whoever last changed this file. Days without a new release run nothing else.
+#
+# Which releases were tested is kept as one small Actions cache entry per version, which the daily check
+# reads and so keeps alive (an entry unread for 7 days is evicted, and its release is tested again once).
+
+on:
+  schedule:
+    - cron: '0 20 * * *'   # 20:00 UTC: Laravel tags its releases in the US working day
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Horizon version to test (empty = the newest 5.x); one that installs on Laravel 13, as the Docker suites run it
+        type: string
+        default: ''
+      force:
+        description: Test it even if it was tested before
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: horizon-release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Look for a new Horizon release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      laravel: ${{ steps.release.outputs.laravel }}
+      php: ${{ steps.release.outputs.php }}
+      new: ${{ steps.new.outputs.new }}
+    steps:
+      - name: The release and what it supports
+        id: release
+        env:
+          WANTED: ${{ inputs.version }}
+        run: |
+          curl -fsSL --retry 3 https://repo.packagist.org/p2/laravel/horizon.json -o horizon.json
+
+          # Packagist's p2 metadata is minified: each version lists only what changed from the one before.
+          jq '[foreach .packages["laravel/horizon"][] as $v ({}; . + $v | with_entries(select(.value != "__unset")))]
+              | map(select(.version | test("^v?5\\.[0-9]+\\.[0-9]+$")))' horizon.json > releases.json
+
+          if [ -n "$WANTED" ]; then
+            version="v${WANTED#v}"
+          else
+            version=$(jq -r '.[].version' releases.json | sort -V | tail -1)
+          fi
+
+          release=$(jq -c --arg v "$version" '.[] | select(.version == $v)' releases.json)
+          if [ -z "$release" ]; then
+            echo "::error::Horizon $version is not a 5.x release on Packagist"; exit 1
+          fi
+
+          # The PHP and Laravel versions this package's CI covers, narrowed to those the release requires.
+          illuminate=$(jq -r '.require["illuminate/support"] // ""' <<<"$release")
+          php_floor=$(jq -r '.require.php // ""' <<<"$release" | grep -oE '8\.[0-9]+' | head -1)
+          laravel=$(for m in 11 12 13; do
+            if grep -qE "(^|[|, ])[\^~]?$m\." <<<"$illuminate"; then echo "\"$m\""; fi
+          done | paste -sd, -)
+          php=$(for p in 8.2 8.3 8.4 8.5; do
+            if [ -z "$php_floor" ] || [ "$(printf '%s\n%s\n' "$php_floor" "$p" | sort -V | head -1)" = "$php_floor" ]; then echo "\"$p\""; fi
+          done | paste -sd, -)
+
+          if [ -z "$laravel" ] || [ -z "$php" ]; then
+            echo "::error::Horizon $version supports no Laravel (illuminate/support $illuminate) or PHP this package's CI covers"; exit 1
+          fi
+
+          # The Docker workbench and the FFI-off leg run Laravel 13 on PHP 8.4.
+          if ! grep -q '"13"' <<<"$laravel" || ! grep -q '"8.4"' <<<"$php"; then
+            echo "::error::Horizon $version doesn't install on Laravel 13 with PHP 8.4, which the Docker suites run (older releases are covered by CI's floor legs)"; exit 1
+          fi
+
+          {
+            echo "version=${version#v}"
+            echo "laravel=[$laravel]"
+            echo "php=[$php]"
+          } >> "$GITHUB_OUTPUT"
+          echo "Horizon ${version#v}: Laravel [$laravel], PHP [$php]"
+
+      - name: Tested before?
+        id: seen
+        uses: actions/cache/restore@v4
+        with:
+          path: .horizon-tested
+          key: horizon-tested-${{ steps.release.outputs.version }}
+
+      - name: Decide
+        id: new
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          SEEN: ${{ steps.seen.outputs.cache-hit }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          if [ "$SEEN" = true ] && [ "$FORCE" != true ]; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "Horizon $VERSION was tested before: $(cat .horizon-tested)" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            echo "Horizon $VERSION is new: testing it now" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+  ci:
+    name: Horizon ${{ needs.check.outputs.version }}
+    needs: check
+    if: needs.check.outputs.new == 'true'
+    uses: ./.github/workflows/ci.yml
+    with:
+      horizon: ${{ needs.check.outputs.version }}
+      laravel: ${{ needs.check.outputs.laravel }}
+      php: ${{ needs.check.outputs.php }}
+
+  record:
+    name: Remember Horizon ${{ needs.check.outputs.version }} as tested
+    needs: [check, ci]
+    # Pass or fail, so a failing release isn't retested every day; a cancelled run is retried tomorrow.
+    if: ${{ !cancelled() && needs.check.outputs.new == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Result
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          RESULT: ${{ needs.ci.result }}
+        run: |
+          echo "$RESULT on $(date -u +%F)" > .horizon-tested
+          echo "Horizon $VERSION: CI $RESULT" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/cache/save@v4
+        with:
+          path: .horizon-tested
+          key: horizon-tested-${{ needs.check.outputs.version }}
