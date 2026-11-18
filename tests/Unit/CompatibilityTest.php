@@ -3,41 +3,70 @@
 namespace Tevkert\QueuePrefork\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
+use ReflectionClass;
 use Tevkert\QueuePrefork\Horizon\Compatibility;
 
 class CompatibilityTest extends TestCase
 {
+    private const SUBCLASSES = [
+        'Tevkert\QueuePrefork\Horizon\PreforkHorizonCommand' => 'Laravel\Horizon\Console\HorizonCommand',
+        'Tevkert\QueuePrefork\Horizon\PreforkAddSupervisor' => 'Laravel\Horizon\MasterSupervisorCommands\AddSupervisor',
+        'Tevkert\QueuePrefork\Horizon\PreforkSupervisorFactory' => 'Laravel\Horizon\SupervisorFactory',
+        'Tevkert\QueuePrefork\Horizon\PreforkSupervisor' => 'Laravel\Horizon\Supervisor',
+        'Tevkert\QueuePrefork\Horizon\PreforkProcessPool' => 'Laravel\Horizon\ProcessPool',
+    ];
+
     public function test_the_installed_horizon_is_what_the_package_extends(): void
     {
         $this->assertSame([], Compatibility::reasons());
         $this->assertSame([], Compatibility::commandReasons());
     }
 
-    public function test_the_overrides_match_the_declarations_they_were_written_against(): void
+    public function test_the_lists_cover_every_member_the_subclasses_declare(): void
     {
-        // Each override must be declared as the parent's: if one changes, the list must change with it.
-        $overrides = [
-            'Laravel\Horizon\Console\HorizonCommand::handle' => 'Tevkert\QueuePrefork\Horizon\PreforkHorizonCommand',
-            'Laravel\Horizon\MasterSupervisorCommands\AddSupervisor::createProcess' => 'Tevkert\QueuePrefork\Horizon\PreforkAddSupervisor',
-            'Laravel\Horizon\SupervisorFactory::make' => 'Tevkert\QueuePrefork\Horizon\PreforkSupervisorFactory',
-            'Laravel\Horizon\Supervisor::__construct' => 'Tevkert\QueuePrefork\Horizon\PreforkSupervisor',
-            'Laravel\Horizon\Supervisor::createProcessPool' => 'Tevkert\QueuePrefork\Horizon\PreforkSupervisor',
-            'Laravel\Horizon\Supervisor::pid' => 'Tevkert\QueuePrefork\Horizon\PreforkSupervisor',
-            'Laravel\Horizon\Supervisor::listenForSignals' => 'Tevkert\QueuePrefork\Horizon\PreforkSupervisor',
-            'Laravel\Horizon\Supervisor::ensureParentIsRunning' => 'Tevkert\QueuePrefork\Horizon\PreforkSupervisor',
-            'Laravel\Horizon\Supervisor::shouldWait' => 'Tevkert\QueuePrefork\Horizon\PreforkSupervisor',
-            'Laravel\Horizon\Supervisor::exitProcess' => 'Tevkert\QueuePrefork\Horizon\PreforkSupervisor',
-            'Laravel\Horizon\ProcessPool::createProcess' => 'Tevkert\QueuePrefork\Horizon\PreforkProcessPool',
-        ];
+        $overridden = [];
+        $added = [];
 
-        $this->assertSame(array_keys(Compatibility::OVERRIDDEN), array_keys($overrides));
+        foreach (self::SUBCLASSES as $child => $parent) {
+            $reflection = new ReflectionClass($child);
+            $this->assertSame($parent, $reflection->getParentClass()->getName(), $child);
 
-        foreach ($overrides as $parent => $child) {
-            $method = new ReflectionMethod($child, explode('::', $parent)[1]);
-            $this->assertSame($child, $method->getDeclaringClass()->getName(), "{$child} overrides {$parent}");
-            $this->assertSame(Compatibility::OVERRIDDEN[$parent], Compatibility::signature($method), $parent);
+            foreach ($reflection->getMethods() as $method) {
+                if ($method->getDeclaringClass()->getName() !== $child) {
+                    continue;
+                }
+
+                $name = $parent.'::'.$method->getName();
+
+                if (method_exists($parent, $method->getName())) {
+                    $overridden[] = $name;
+                    // Each override is declared as the parent's: if one changes, the list changes with it.
+                    $this->assertSame(Compatibility::OVERRIDDEN[$name] ?? null, Compatibility::signature($method), $name);
+                } else {
+                    $added[] = $name;
+                }
+            }
+
+            foreach ($reflection->getProperties() as $property) {
+                if ($property->getDeclaringClass()->getName() === $child) {
+                    $this->assertFalse(property_exists($parent, $property->getName()), "{$child} redeclares \${$property->getName()}");
+                    $added[] = $parent.'::$'.$property->getName();
+                }
+            }
         }
+
+        sort($overridden);
+        sort($added);
+        $this->assertSame($this->sorted(array_keys(Compatibility::OVERRIDDEN)), $overridden);
+        $this->assertSame($this->sorted(Compatibility::ADDED), $added);
+        $this->assertSame($this->sorted(array_values(self::SUBCLASSES)), $this->sorted(Compatibility::EXTENDED));
+    }
+
+    public function test_a_method_that_now_returns_by_reference_is_a_reason(): void
+    {
+        $reasons = Compatibility::reasons([], [CompatibilityParent::class.'::byReference' => 'public byReference()'], [], [], [], []);
+
+        $this->assertStringContainsString('is now [public &byReference()]', $reasons[0] ?? '');
     }
 
     public function test_a_changed_declaration_is_a_reason(): void
@@ -51,6 +80,7 @@ class CompatibilityTest extends TestCase
             ],
             [CompatibilityParent::class.'::needsTwo' => 1, CompatibilityParent::class.'::typed' => 0],
             [CompatibilityParent::class.'::$hidden' => 'public', CompatibilityParent::class.'::$shared' => 'public static'],
+            [CompatibilityParent::class.'::$shared', CompatibilityParent::class.'::same', CompatibilityParent::class.'::ours'],
             ['Missing\Event'],
         );
 
@@ -63,8 +93,18 @@ class CompatibilityTest extends TestCase
         $this->assertStringContainsString('::needsTwo() is now [public needsTwo($a, $b)], the package passes 1 argument(s)', $reason);
         $this->assertStringContainsString('::typed() is no longer public', $reason);
         $this->assertStringContainsString('::$hidden is now not public', $reason);
-        $this->assertStringNotContainsString('$shared', $reason);
+        $this->assertStringNotContainsString('::$shared is now', $reason);
+        $this->assertStringContainsString('now declares $shared itself', $reason);
+        $this->assertStringContainsString('now declares same itself', $reason);
+        $this->assertStringNotContainsString('declares ours', $reason);
         $this->assertStringContainsString('has no Missing\Event', $reason);
+    }
+
+    private function sorted(array $list): array
+    {
+        sort($list);
+
+        return $list;
     }
 }
 
@@ -81,4 +121,6 @@ class CompatibilityParent
     public function same(?string $line = null) {}
 
     public function needsTwo($a, $b) {}
+
+    public function &byReference() {}
 }

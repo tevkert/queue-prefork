@@ -76,6 +76,11 @@ jobs:
             echo "::error::Horizon $version supports no Laravel (illuminate/support $illuminate) or PHP this package's CI covers"; exit 1
           fi
 
+          # The Docker workbench and the FFI-off leg run Laravel 13 on PHP 8.4.
+          if ! grep -q '"13"' <<<"$laravel" || ! grep -q '"8.4"' <<<"$php"; then
+            echo "::error::Horizon $version doesn't install on Laravel 13 with PHP 8.4, which the Docker suites run (older releases are covered by CI's floor legs)"; exit 1
+          fi
+
           {
             echo "version=${version#v}"
             echo "laravel=[$laravel]"

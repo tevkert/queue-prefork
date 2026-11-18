@@ -105,6 +105,11 @@ jobs:
           php-version: '8.4'
           extensions: pcntl, posix, opcache
           coverage: none
+      - name: Pin Horizon ${{ inputs.horizon }}
+        if: inputs.horizon
+        env:
+          RELEASE: ${{ inputs.horizon }}
+        run: composer require --dev --no-update --no-interaction "laravel/horizon:$RELEASE"
       - run: composer update --prefer-dist --no-interaction --no-progress
       - run: vendor/bin/phpunit --testsuite Unit,Mechanics
 

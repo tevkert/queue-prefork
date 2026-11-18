@@ -16,7 +16,8 @@ use ReflectionType;
  * relies on changed.
  *
  * Every Horizon from 5.23 to 5.52 declares them exactly as listed here. Anything else (a method that
- * gained a parameter or a return type, a class made final, a property gone) is a reason to run stock.
+ * gained a parameter or a return type, a class made final, a property gone, a member the package's
+ * subclass adds now declared by Horizon too) is a reason to run stock.
  * It must be checked before a class extending Horizon's is loaded: PHP stops at an incompatible override
  * with a fatal error, which would keep Horizon from starting at all.
  *
@@ -76,6 +77,13 @@ final class Compatibility
         'Laravel\Horizon\WorkerCommandString::$command' => 'public static',
     ];
 
+    /** Members the package's subclasses add: a Horizon that declares one itself would clash with them. */
+    public const ADDED = [
+        'Laravel\Horizon\Supervisor::$noWait',
+        'Laravel\Horizon\Supervisor::endUnit',
+        'Laravel\Horizon\Supervisor::release',
+    ];
+
     /** Events the package listens to. */
     public const EVENTS = [
         'Laravel\Horizon\Events\MasterSupervisorLooped',
@@ -95,6 +103,7 @@ final class Compatibility
             [],
             [],
             [],
+            [],
         );
     }
 
@@ -104,6 +113,7 @@ final class Compatibility
         array $overridden = self::OVERRIDDEN,
         array $called = self::CALLED,
         array $read = self::READ,
+        array $added = self::ADDED,
         array $events = self::EVENTS,
     ): array {
         $reasons = [];
@@ -157,6 +167,14 @@ final class Compatibility
             }
         }
 
+        foreach ($added as $name) {
+            [$class, $member] = explode('::', $name);
+
+            if (class_exists($class) && (str_starts_with($member, '$') ? property_exists($class, substr($member, 1)) : method_exists($class, $member))) {
+                $reasons[] = "Horizon's {$class} now declares {$member} itself, which the package's subclass adds";
+            }
+        }
+
         foreach ($events as $class) {
             if (! class_exists($class)) {
                 $reasons[] = "Horizon has no {$class}";
@@ -188,7 +206,9 @@ final class Compatibility
 
         $return = $method->hasReturnType() ? ': '.self::type($method->getReturnType()) : '';
 
-        return "{$modifiers} {$method->getName()}(".implode(', ', $parameters).')'.$return;
+        $reference = $method->returnsReference() ? '&' : '';
+
+        return "{$modifiers} {$reference}{$method->getName()}(".implode(', ', $parameters).')'.$return;
     }
 
     private static function method(string $name): ?ReflectionMethod

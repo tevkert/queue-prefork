@@ -10,6 +10,7 @@ use Laravel\Horizon\Console\HorizonCommand;
 use Laravel\Horizon\Events\MasterSupervisorLooped;
 use Laravel\Horizon\Events\SupervisorLooped;
 use Laravel\Horizon\SupervisorFactory;
+use Tevkert\QueuePrefork\Client\Report;
 use Tevkert\QueuePrefork\Console\ProbeCommand;
 use Tevkert\QueuePrefork\Horizon\Compatibility;
 use Tevkert\QueuePrefork\Horizon\PreforkHorizonCommand;
@@ -123,6 +124,15 @@ final class Wiring
 
     private static function supervisorLoop(Application $app): void
     {
+        $incompatible = Compatibility::reasons();
+
+        if ($incompatible !== []) {
+            // This loop booted another Horizon than the master checked (a deploy in between): never load
+            // the subclasses. Leaving before hello, with 71, has the master run this supervisor stock.
+            Report::event('UnitStock', ['reason' => implode('; ', $incompatible)]);
+            RoleGuard::shim(71);
+        }
+
         $app->bind(SupervisorFactory::class, PreforkSupervisorFactory::class);
         $app['events']->listen(SupervisorLooped::class, fn () => Link::tick());
         Link::hello();
