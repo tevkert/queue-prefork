@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Horizon version to test (empty = the newest 5.x)
+        description: Horizon version to test (empty = the newest 5.x); one that installs on Laravel 13, as the Docker suites run it
         type: string
         default: ''
       force:
