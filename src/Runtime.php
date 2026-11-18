@@ -15,11 +15,11 @@ final class Runtime
 
     /** The package's classes that don't extend the framework's (PHP's own count as none): what preload() loads. */
     public const CLASSES = [
-        Client\Broker::class, Client\Direct::class, Client\Report::class, Handoff::class, Link::class, Master::class,
-        MasterHandoff::class, Preflight::class, QueueWorkerLink::class, Runtime::class, Settings::class, Wiring::class,
-        WorkerLink::class, Server\ChildJob::class, Server\ChildRoutine::class, Server\Opcache::class, Server\RoleGuard::class,
-        Server\SharedLog::class, Server\Signals::class, Server\Template::class, Server\UnitServer::class,
-        Server\WorkServer::class, Server\WorkerContext::class, Support\Audit::class, Support\Channel::class,
+        Client\Broker::class, Client\Direct::class, Client\Report::class, Handoff::class, Horizon\Compatibility::class, Link::class,
+        Master::class, MasterHandoff::class, Preflight::class, QueueWorkerLink::class, Runtime::class, Settings::class,
+        Wiring::class, WorkerLink::class, Server\ChildJob::class, Server\ChildRoutine::class, Server\Opcache::class,
+        Server\RoleGuard::class, Server\SharedLog::class, Server\Signals::class, Server\Template::class,
+        Server\UnitServer::class, Server\WorkServer::class, Server\WorkerContext::class, Support\Audit::class, Support\Channel::class,
         Support\CommandLine::class, Support\DotEnv::class, Support\EarlyConfig::class, Support\Fd::class,
         Support\Identity::class, Support\LineBufferFilter::class, Support\LineBufferedOutput::class,
         Support\LogTargets::class, Support\Native::class, Support\Process::class, Support\RuntimeDir::class,

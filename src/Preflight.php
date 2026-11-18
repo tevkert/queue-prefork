@@ -10,6 +10,7 @@ use Laravel\Horizon\SupervisorCommandString;
 use Laravel\Horizon\SupervisorFactory;
 use Laravel\Horizon\WorkerCommandString;
 use Symfony\Component\Process\Process;
+use Tevkert\QueuePrefork\Horizon\Compatibility;
 use Tevkert\QueuePrefork\Support\CommandLine;
 use Throwable;
 
@@ -18,9 +19,6 @@ use Throwable;
  */
 final class Preflight
 {
-    /** Newest Horizon 5 minor the suites have passed on. */
-    public const TESTED_HORIZON_MINOR = 50;
-
     /** @return list<string> */
     public static function check(Application $app, bool $probes = true): array
     {
@@ -52,7 +50,10 @@ final class Preflight
             $reasons[] = '/bin/sh is missing';
         }
 
-        $reasons = array_merge($reasons, self::horizonVersion($config), self::bindings($app), self::commandStrings($app), self::extensions($config));
+        $horizon = self::horizonVersion();
+
+        // The bindings and command strings are Horizon's too: read them only from a Horizon that has them.
+        $reasons = array_merge($reasons, $horizon, $horizon === [] ? [...self::bindings($app), ...self::commandStrings($app)] : [], self::extensions($config));
 
         if ($probes && $reasons === []) {
             $reasons = array_merge($reasons, self::probes($app));
@@ -61,28 +62,25 @@ final class Preflight
         return $reasons;
     }
 
-    /** @return list<string> */
-    private static function horizonVersion(array $config): array
+    /**
+     * Any Horizon 5 whose classes still look as the package expects: the version alone isn't checked
+     * beyond the major, as a new release usually changes nothing the package relies on.
+     *
+     * @return list<string>
+     */
+    private static function horizonVersion(): array
     {
         try {
             $version = (string) InstalledVersions::getVersion('laravel/horizon');
         } catch (Throwable) {
-            return [];
+            $version = '';
         }
 
-        if (! preg_match('/^v?(\d+)\.(\d+)/', $version, $m)) {
-            return [];
-        }
-
-        if ((int) $m[1] !== 5) {
+        if (preg_match('/^v?(\d+)\./', $version, $m) && (int) $m[1] !== 5) {
             return ["unsupported Horizon {$version}"];
         }
 
-        if ((int) $m[2] > self::TESTED_HORIZON_MINOR && ! ($config['allow_untested_horizon'] ?? false)) {
-            return ["Horizon {$version} is newer than the tested 5.".self::TESTED_HORIZON_MINOR.' (set allow_untested_horizon to try it)'];
-        }
-
-        return [];
+        return Compatibility::reasons();
     }
 
     /** @return list<string> */

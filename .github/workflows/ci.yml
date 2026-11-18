@@ -12,12 +12,27 @@ on:
         description: Run the Docker integration suites
         type: boolean
         default: true
+  # From horizon-release.yml: everything (Docker suites included) against one new Horizon release.
+  workflow_call:
+    inputs:
+      horizon:
+        description: The exact Horizon version to test
+        type: string
+        required: true
+      laravel:
+        description: The Laravel majors that release supports, as a JSON list
+        type: string
+        required: true
+      php:
+        description: The PHP versions that release supports, as a JSON list
+        type: string
+        required: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}-${{ github.event_name }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}${{ inputs.horizon && format('-horizon-{0}', inputs.horizon) || '' }}
   cancel-in-progress: true
 
 jobs:
@@ -30,15 +45,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.2', '8.3', '8.4', '8.5']
-        laravel: ['11', '12', '13']
-        horizon: [floor, tested]   # floor = this package's oldest Horizon minor for that Laravel major; tested = Preflight::TESTED_HORIZON_MINOR
+        php: ${{ fromJSON(inputs.php || '["8.2", "8.3", "8.4", "8.5"]') }}
+        laravel: ${{ fromJSON(inputs.laravel || '["11", "12", "13"]') }}
+        # floor = this package's oldest Horizon minor for that Laravel major; latest = the newest Horizon 5 that
+        # Laravel major installs; release = the one Horizon version horizon-release.yml passed in
+        horizon: ${{ fromJSON(inputs.horizon && '["release"]' || '["floor", "latest"]') }}
         ffi: ['on']
         exclude:
           - php: '8.2'
             laravel: '13'   # Laravel 13 needs PHP 8.3+
         include:
-          - { php: '8.4', laravel: '13', horizon: tested, ffi: 'off' }   # the package without FFI; Mechanics needs it and skips (every leg covers shared-log mode)
+          - { php: '8.4', laravel: '13', horizon: "${{ inputs.horizon && 'release' || 'latest' }}", ffi: 'off' }   # the package without FFI; Mechanics needs it and skips (every leg covers shared-log mode)
     steps:
       - uses: actions/checkout@v4
 
@@ -52,13 +69,15 @@ jobs:
           tools: composer:v2
 
       - name: Pick versions
+        env:
+          RELEASE: ${{ inputs.horizon }}
         run: |
-          tested=$(grep -oE 'TESTED_HORIZON_MINOR = [0-9]+' src/Preflight.php | grep -oE '[0-9]+$')
           case "${{ matrix.laravel }}-${{ matrix.horizon }}" in
             11-floor) horizon='5.23.*' ;;
             12-floor) horizon='5.30.*' ;;
             13-floor) horizon='5.44.*' ;;
-            *-tested) horizon="5.${tested}.*" ;;
+            *-latest) horizon='5.*' ;;   # Laravel 11 resolves to 5.50, the last Horizon that supports it
+            *-release) horizon="$RELEASE" ;;
           esac
           echo "Horizon constraint: ${horizon}"
           composer require --no-update --no-interaction \
@@ -91,6 +110,7 @@ jobs:
 
   package:
     name: Package contents
+    if: ${{ !inputs.horizon }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -111,10 +131,11 @@ jobs:
           done
 
   # Real Horizon and queue:work in Docker (docker/README.md): the integration and parity suites against
-  # stock, nightly and on demand. Laravel 13, Horizon 5.50 and PHP 8.4, as the workbench's lock pins them.
+  # stock, nightly, on demand and on each new Horizon release. Laravel 13, Horizon 5.52 and PHP 8.4, as the
+  # workbench's lock pins them (a new Horizon release replaces 5.52).
   integration:
     name: Docker · ${{ matrix.name }}
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.integration)
+    if: inputs.horizon || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.integration)
     runs-on: ubuntu-latest
     timeout-minutes: 90
     continue-on-error: ${{ matrix.experimental }}
@@ -153,11 +174,23 @@ jobs:
       - name: Let the containers' user write the bind-mounted checkout
         run: chmod -R a+rwX "$GITHUB_WORKSPACE"
 
-      - name: Build and start both stacks
+      - name: Build the stacks
         working-directory: docker
+        run: docker compose -f compose.yml ${{ matrix.compose }} build
+
+      - name: Install Horizon ${{ inputs.horizon }} in the workbench
+        if: inputs.horizon
+        working-directory: docker
+        env:
+          RELEASE: ${{ inputs.horizon }}
         run: |
-          docker compose -f compose.yml ${{ matrix.compose }} build
-          docker compose -f compose.yml ${{ matrix.compose }} up -d app-stock app-prefork
+          docker compose -f compose.yml ${{ matrix.compose }} run --rm --entrypoint sh setup -c \
+            "cd /repo/workbench && composer require 'laravel/horizon:$RELEASE' --update-with-dependencies --no-interaction --no-progress"
+          grep -A1 '"name": "laravel/horizon"' ../workbench/composer.lock
+
+      - name: Start both stacks
+        working-directory: docker
+        run: docker compose -f compose.yml ${{ matrix.compose }} up -d app-stock app-prefork
 
       - name: Wait for the workers in both stacks
         run: |
@@ -203,7 +236,7 @@ jobs:
   # crashes at boot, and systemd units against stock units in a privileged systemd container.
   gates:
     name: Gate · ${{ matrix.gate }}
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.integration)
+    if: ${{ !inputs.horizon && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.integration)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
