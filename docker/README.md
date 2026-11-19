@@ -60,7 +60,7 @@ After changing an env switch, recreate: `docker compose up -d --force-recreate a
 
 ```sh
 docker compose exec app-stock php artisan fixtures:dispatch --list
-docker compose exec app-stock php artisan fixtures:dispatch                 # all but crashes and calls-artisan
+docker compose exec app-stock php artisan fixtures:dispatch                 # all but crashes, calls-artisan and fails-in-vendor
 docker compose exec app-stock php artisan fixtures:dispatch crashes         # exit(255); --crash=segv for SIGSEGV
 docker compose exec app-stock php artisan fixtures:dispatch sleeps --sleep=20 --queue=import
 docker compose exec app-stock php artisan fixtures:dispatch sleeps-steady --sleep=20   # sleeps through signals
@@ -215,5 +215,8 @@ heavy jobs (image renditions, LLM calls, Livewire renders, bulk maintenance):
   Forge server. One override, `php/conf.d/zz-cli.ini`: `memory_limit=-1`, as Ubuntu's CLI php.ini has.
   Otherwise a worker would die at 128M before Horizon's own `memory` check (128 MB) recycles it.
 - `workbench/composer.json` pins `laravel/horizon` to `5.52.*`.
-- The package is a Composer path repository (`..`, symlinked), so changes to `src/` need no reinstall;
-  restart Horizon (`docker compose restart app-prefork`) to load them.
+- The package is a Composer path repository (`..`), but `setup` replaces Composer's symlink with a copy
+  of `bin/`, `config/`, `src/` and `composer.json`, as an install from Packagist has: PHP resolves
+  symlinks in stack traces, and error trackers judge a frame by its path. `setup` copies again on every
+  `up`, so recreate the stacks (`docker compose up -d --force-recreate app-stock app-prefork`) to load
+  changes to `src/`.

@@ -82,7 +82,7 @@ final class MasterHandoff
     {
         $runtime = RuntimeDir::shared();
         RuntimeDir::ensure($runtime);
-        $template = RuntimeDir::copy($runtime, 'template', 'php', (string) file_get_contents(dirname(__DIR__).'/bin/template.php'));
+        $template = RuntimeDir::launcher($runtime, dirname(__DIR__));
         $ini = RuntimeDir::copy($runtime, 'ini', 'json', json_encode(TemplateKey::iniValues(), JSON_UNESCAPED_SLASHES));
         $settings = TemplateKey::settings(dirname($entry));
         $argv = Handoff::phpOptions();
