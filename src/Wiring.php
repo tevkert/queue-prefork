@@ -2,8 +2,10 @@
 
 namespace Tevkert\QueuePrefork;
 
+use Closure;
 use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Foundation\Events\Terminating;
 use Illuminate\Queue\Events\Looping;
 use Illuminate\Queue\Events\WorkerStopping;
 use Laravel\Horizon\Console\HorizonCommand;
@@ -106,9 +108,17 @@ final class Wiring
 
         Settings::mergeDefaults($app);
 
-        $app['events']->listen(CommandFinished::class, function (CommandFinished $event): void {
-            if (Runtime::$role === 'unit-loop' && Runtime::$statusDir !== null && Runtime::$unitId !== null) {
-                StatusFiles::writeIntent(Runtime::$statusDir, Runtime::$unitId, (int) $event->exitCode);
+        $exitCode = null;
+
+        // Artisan::call() inside a job fires CommandFinished too, so this only keeps the exit code.
+        // The last one before the kernel terminates is this process's own command.
+        $app['events']->listen(CommandFinished::class, function (CommandFinished $event) use (&$exitCode): void {
+            $exitCode = (int) $event->exitCode;
+        });
+
+        self::whenCommandEnds($app, function () use (&$exitCode): void {
+            if ($exitCode !== null && Runtime::$role === 'unit-loop' && Runtime::$statusDir !== null && Runtime::$unitId !== null) {
+                StatusFiles::writeIntent(Runtime::$statusDir, Runtime::$unitId, $exitCode);
             }
 
             RoleGuard::armWatchdog();
@@ -178,11 +188,27 @@ final class Wiring
 
             $app->singleton(Master::class);
             $app->bind(HorizonCommand::class, PreforkHorizonCommand::class);
-            $app['events']->listen(CommandFinished::class, fn () => RoleGuard::armWatchdog());
+            self::whenCommandEnds($app, fn () => RoleGuard::armWatchdog());
             $app['events']->listen(MasterSupervisorLooped::class, fn () => $app->make(Master::class)->watchHost());
         } catch (Throwable $e) {
             Master::handBack(get_class($e).': '.$e->getMessage());
         }
+    }
+
+    /**
+     * Runs $callback once this process's own command is over. Laravel calls the console kernel's
+     * terminate() for that command only, never for Artisan::call().
+     */
+    private static function whenCommandEnds(Application $app, Closure $callback): void
+    {
+        if (class_exists(Terminating::class)) {
+            // Laravel 11.18+, fired before the app's terminating callbacks
+            $app['events']->listen(Terminating::class, fn () => $callback());
+
+            return;
+        }
+
+        $app->terminating($callback);
     }
 
     private static function installedProtocol(): int
