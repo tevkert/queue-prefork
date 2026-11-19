@@ -71,6 +71,27 @@ class StockParityTest extends IntegrationCase
         $this->assertSame($outcomes[self::STOCK], $outcomes[self::PREFORK]);
     }
 
+    public function test_a_job_keeps_its_worker_after_running_an_artisan_command(): void
+    {
+        // The job keeps working for longer than exit_grace (15 s) after its Artisan::call().
+        foreach ([self::STOCK, self::PREFORK] as $container) {
+            self::artisan($container, 'fixtures:dispatch calls-artisan --work=18');
+        }
+
+        // fixtures:results matches --job as a prefix: pick each row by its exact name
+        $rows = fn (string $container, string $job) => array_values(array_filter(self::results($container, 'CallsArtisan'), fn (array $row) => $row['job'] === $job));
+        $seen = [];
+
+        foreach ([self::STOCK, self::PREFORK] as $container) {
+            [$called] = self::waitUntil(fn () => $rows($container, 'CallsArtisan.called'), 20, "CallsArtisan.called in {$container}");
+            [$done] = self::waitUntil(fn () => $rows($container, 'CallsArtisan'), 40, "{$container}: the job to finish 18 s after its Artisan::call()");
+            $this->assertSame($called['pid'], $done['pid'], "{$container}: one worker ran the whole job");
+            $seen[$container] = [$called['value'], $done['value']];
+        }
+
+        $this->assertSame($seen[self::STOCK], $seen[self::PREFORK], 'SIGALRM does after the command what it does in stock');
+    }
+
     public function test_worker_output_reaches_the_horizon_log(): void
     {
         foreach ([self::STOCK, self::PREFORK] as $container) {

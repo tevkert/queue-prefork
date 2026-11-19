@@ -35,7 +35,7 @@ class QueueWorkStockParityTest extends QueueWorkCase
 
     public function test_every_fixture_ends_as_in_stock(): void
     {
-        // All but `crashes` (QueueWorkParityTest has it): random values, connections, Concurrency::run,
+        // All but `crashes` (QueueWorkParityTest has it) and `calls-artisan` (its own test): random values, connections, Concurrency::run,
         // batches, releases, failures, a timeout kill, a --memory exit, output.
         self::both(fn ($c) => self::artisan($c, 'fixtures:dispatch --queue='.self::QUEUE));
         $outcomes = [];
@@ -56,6 +56,23 @@ class QueueWorkStockParityTest extends QueueWorkCase
 
         $this->assertNotSame([], $outcomes[self::STOCK]['jobs']);
         $this->assertSame($outcomes[self::STOCK], $outcomes[self::PREFORK]);
+    }
+
+    public function test_a_job_keeps_its_worker_after_running_an_artisan_command(): void
+    {
+        // The job keeps working for longer than exit_grace (15 s) after its Artisan::call(). The Horizon
+        // counterpart is in StockParityTest.
+        self::both(fn ($c) => self::artisan($c, 'fixtures:dispatch calls-artisan --work=18 --queue='.self::QUEUE));
+        $seen = [];
+
+        foreach (self::BOTH as $container) {
+            [$called] = self::waitUntil(fn () => self::rows($container, 'CallsArtisan.called'), 20, "CallsArtisan.called in {$container}");
+            [$done] = self::waitUntil(fn () => self::rows($container, 'CallsArtisan'), 40, "{$container}: the job to finish 18 s after its Artisan::call()");
+            $this->assertSame($called['pid'], $done['pid'], "{$container}: one worker ran the whole job");
+            $seen[$container] = [$called['value'], $done['value']];
+        }
+
+        $this->assertSame($seen[self::STOCK], $seen[self::PREFORK], 'SIGALRM does after the command what it does in stock');
     }
 
     public function test_concurrent_workers_draw_different_random_numbers(): void

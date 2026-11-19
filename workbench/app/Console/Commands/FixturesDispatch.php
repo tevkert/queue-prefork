@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\CallsArtisan;
 use App\Jobs\Crashes;
 use App\Jobs\DispatchesBatch;
 use App\Jobs\Dumps;
@@ -17,15 +18,16 @@ use App\Jobs\Succeeds;
 use App\Jobs\TimesOut;
 use Illuminate\Console\Command;
 
-/** Dispatches fixture jobs by name. With no names, every fixture except `crashes`. */
+/** Dispatches fixture jobs by name. With no names, every fixture except `crashes` and `calls-artisan`. */
 class FixturesDispatch extends Command
 {
     protected $signature = 'fixtures:dispatch
-        {fixtures?* : fixture names (see --list); default: all but crashes}
+        {fixtures?* : fixture names (see --list); default: all but crashes and calls-artisan}
         {--queue=default : queue to dispatch on}
         {--times=1 : how many of each}
         {--sleep=3 : seconds for sleeps}
         {--hold=0 : seconds reads-random keeps its worker after drawing}
+        {--work=18 : seconds calls-artisan keeps working after its command}
         {--leak=160 : megabytes for leaks-memory}
         {--crash=exit : exit or segv, for crashes}
         {--list : list the fixture names}';
@@ -44,7 +46,7 @@ class FixturesDispatch extends Command
             return self::SUCCESS;
         }
 
-        $names = $this->argument('fixtures') ?: array_values(array_diff(array_keys($fixtures), ['crashes']));
+        $names = $this->argument('fixtures') ?: array_values(array_diff(array_keys($fixtures), ['crashes', 'calls-artisan']));
         $unknown = array_diff($names, array_keys($fixtures));
 
         if ($unknown) {
@@ -84,6 +86,7 @@ class FixturesDispatch extends Command
             'dumps' => fn () => new Dumps,
             'runs-concurrency' => fn () => new RunsConcurrency,
             'dispatches-batch' => fn () => new DispatchesBatch,
+            'calls-artisan' => fn () => new CallsArtisan((int) $this->option('work')),
         ];
     }
 }

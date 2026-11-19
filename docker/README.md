@@ -60,7 +60,7 @@ After changing an env switch, recreate: `docker compose up -d --force-recreate a
 
 ```sh
 docker compose exec app-stock php artisan fixtures:dispatch --list
-docker compose exec app-stock php artisan fixtures:dispatch                 # all but crashes
+docker compose exec app-stock php artisan fixtures:dispatch                 # all but crashes and calls-artisan
 docker compose exec app-stock php artisan fixtures:dispatch crashes         # exit(255); --crash=segv for SIGSEGV
 docker compose exec app-stock php artisan fixtures:dispatch sleeps --sleep=20 --queue=import
 docker compose exec app-stock php artisan fixtures:dispatch sleeps-steady --sleep=20   # sleeps through signals
