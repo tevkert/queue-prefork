@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] - 2026-11-20
+
+- **Stack traces in Flare, Sentry and Nightwatch:** a forked worker's stack trace ends in the launcher the template was started from, not in `artisan`. The launcher was a copy outside `vendor/`, so error trackers counted it as the app's own code. Flare drops every frame above the first frame of the app's code, so for a job failing in vendor code (a package's job, for example) only the launcher was left. Sentry marked it as the app's code, and Nightwatch placed such exceptions there. Templates now start through a link to the package's own `bin/template.php`, so traces name it in `vendor/`, and error trackers see the trace as in stock. Reported by Funsho Arashi (#5).
+
 ## [1.1.1] - 2026-11-19
 
 - **Workers survive `Artisan::call()`:** Laravel fires `CommandFinished` for `Artisan::call()` too, and the package armed its exit watchdog on that event. A job that ran an Artisan command and kept working for more than 15 seconds (`exit_grace`) had its worker killed mid-job, in Horizon and in plain `queue:work` alike. The job wasn't marked failed; it ran again after `retry_after`. The watchdog is now armed when the console kernel terminates, which Laravel does only for the process's own command. Contributed by Ali Gulzar (#4).
@@ -49,6 +53,7 @@ First release: Laravel queue workers run as forks of a template process that sha
 - **Commands:** `queue-prefork:doctor`, `queue-prefork:status`, `queue-prefork:switch` and `queue-prefork:retire`.
 - Developed as `horizon-prefork` before the first release, which only covered Horizon.
 
+[1.1.2]: https://github.com/tevkert/queue-prefork/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/tevkert/queue-prefork/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/tevkert/queue-prefork/compare/v1.0.5...v1.1.0
 [1.0.5]: https://github.com/tevkert/queue-prefork/compare/v1.0.4...v1.0.5
