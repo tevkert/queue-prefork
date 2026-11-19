@@ -78,6 +78,37 @@ class RuntimeDirTest extends TestCase
         RuntimeDir::check($this->base.'/link');
     }
 
+    public function test_the_launcher_is_a_link_to_the_package_file(): void
+    {
+        $dir = $this->base.'/rt';
+        RuntimeDir::ensure($dir);
+        $package = dirname(__DIR__, 2);
+
+        $launcher = RuntimeDir::launcher($dir, $package);
+
+        $this->assertStringStartsWith($dir.'/template-', $launcher, 'the command line keeps the runtime path');
+        $this->assertTrue(is_link($launcher));
+        $this->assertSame(realpath($package.'/bin/template.php'), realpath($launcher), 'PHP names the package file in stack traces');
+        $this->assertSame($launcher, RuntimeDir::launcher($dir, $package), 'reused');
+    }
+
+    public function test_launchers_of_a_removed_release_are_removed(): void
+    {
+        $dir = $this->base.'/rt';
+        RuntimeDir::ensure($dir);
+        mkdir($this->base.'/old/bin', 0700, true);
+        file_put_contents($this->base.'/old/bin/template.php', '<?php');
+        $old = RuntimeDir::launcher($dir, $this->base.'/old');
+        $copy = RuntimeDir::copy($dir, 'template', 'php', '<?php // 1.1.1');
+        exec('rm -rf '.escapeshellarg($this->base.'/old'));
+
+        $current = RuntimeDir::launcher($dir, dirname(__DIR__, 2));
+
+        $this->assertFalse(is_link($old), 'the dangling link is gone');
+        $this->assertFileExists($copy, 'a copy from an earlier version stays: a template may be starting from it');
+        $this->assertTrue(is_link($current));
+    }
+
     public function test_never_reads_a_symlinked_status_file(): void
     {
         $dir = $this->base.'/rt';

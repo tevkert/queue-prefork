@@ -17,12 +17,13 @@ use App\Jobs\Sleeps;
 use App\Jobs\Succeeds;
 use App\Jobs\TimesOut;
 use Illuminate\Console\Command;
+use Illuminate\Foundation\Console\QueuedCommand;
 
-/** Dispatches fixture jobs by name. With no names, every fixture except `crashes` and `calls-artisan`. */
+/** Dispatches fixture jobs by name. With no names, every fixture except `crashes`, `calls-artisan` and `fails-in-vendor`. */
 class FixturesDispatch extends Command
 {
     protected $signature = 'fixtures:dispatch
-        {fixtures?* : fixture names (see --list); default: all but crashes and calls-artisan}
+        {fixtures?* : fixture names (see --list); default: all but crashes, calls-artisan and fails-in-vendor}
         {--queue=default : queue to dispatch on}
         {--times=1 : how many of each}
         {--sleep=3 : seconds for sleeps}
@@ -46,7 +47,7 @@ class FixturesDispatch extends Command
             return self::SUCCESS;
         }
 
-        $names = $this->argument('fixtures') ?: array_values(array_diff(array_keys($fixtures), ['crashes', 'calls-artisan']));
+        $names = $this->argument('fixtures') ?: array_values(array_diff(array_keys($fixtures), ['crashes', 'calls-artisan', 'fails-in-vendor']));
         $unknown = array_diff($names, array_keys($fixtures));
 
         if ($unknown) {
@@ -87,6 +88,9 @@ class FixturesDispatch extends Command
             'runs-concurrency' => fn () => new RunsConcurrency,
             'dispatches-batch' => fn () => new DispatchesBatch,
             'calls-artisan' => fn () => new CallsArtisan((int) $this->option('work')),
+            // Laravel's own job, failing in Symfony's code: a trace without any of the app's frames, as for
+            // a package's job. App\Support\ErrorTrackers records what error trackers make of it.
+            'fails-in-vendor' => fn () => new QueuedCommand(['fixtures:no-such-command', []]),
         ];
     }
 }

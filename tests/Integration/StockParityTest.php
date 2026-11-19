@@ -92,6 +92,27 @@ class StockParityTest extends IntegrationCase
         $this->assertSame($seen[self::STOCK], $seen[self::PREFORK], 'SIGALRM does after the command what it does in stock');
     }
 
+    public function test_error_trackers_see_a_failed_job_as_in_stock(): void
+    {
+        // A job that fails in vendor code only, as a package's job does: Flare, Sentry and Nightwatch must
+        // see its stack trace as in stock (App\Support\ErrorTrackers). A forked worker's trace ends in the
+        // launcher, not in artisan, and the launcher must count as library code. The queue:work
+        // counterpart is in QueueWorkStockParityTest.
+        foreach ([self::STOCK, self::PREFORK] as $container) {
+            self::artisan($container, 'fixtures:dispatch fails-in-vendor');
+        }
+
+        $seen = [];
+
+        foreach ([self::STOCK, self::PREFORK] as $container) {
+            $seen[$container] = self::waitUntil(fn () => self::results($container, 'ErrorTrackers'), 30, "ErrorTrackers in {$container}")[0]['value'];
+        }
+
+        $this->assertSame([], $seen[self::STOCK]['flare_app_frames'], 'stock: no frame is the app\'s');
+        $this->assertSame($seen[self::STOCK]['thrown_at'], $seen[self::STOCK]['flare_first_frame'], 'stock: Flare keeps the trace from where it was thrown');
+        $this->assertSame($seen[self::STOCK], $seen[self::PREFORK]);
+    }
+
     public function test_worker_output_reaches_the_horizon_log(): void
     {
         foreach ([self::STOCK, self::PREFORK] as $container) {

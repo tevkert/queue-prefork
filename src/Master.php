@@ -67,6 +67,9 @@ final class Master
 
     private string $statusDir = '';
 
+    /** What the template is started from (RuntimeDir::launcher). */
+    private string $launcher = '';
+
     private float $lastSnapshot = 0.0;
 
     /** @var array<string, ForkedProcess> supervisor name => current unit handle */
@@ -284,8 +287,7 @@ final class Master
         RuntimeDir::ensure($this->statusDir);
 
         if (! self::forkedByHost()) {
-            $launcher = (string) file_get_contents(self::packageDir().'/bin/template.php');
-            RuntimeDir::writeAtomic($this->runtimeDir, 'template.php', $launcher);
+            $this->launcher = RuntimeDir::launcher($this->runtimeDir, self::packageDir());
         }
     }
 
@@ -382,7 +384,7 @@ final class Master
             array_push($command, '-d', $setting);
         }
 
-        $command[] = $this->runtimeDir.'/template.php';
+        $command[] = $this->launcher;
 
         return $command;
     }

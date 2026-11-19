@@ -139,6 +139,41 @@ final class RuntimeDir
         }
     }
 
+    /**
+     * What a template is started from: a link in $dir to the package's own bin/template.php. The command
+     * line keeps this private path, with nothing in it horizon:purge could match, while PHP resolves the
+     * link: stack traces name the launcher in the app's vendor/, so error trackers count it as library
+     * code, as they do artisan. Links whose release is gone are removed. A copy where no link can be made.
+     */
+    public static function launcher(string $dir, string $packageDir): string
+    {
+        self::check($dir);
+        $target = $packageDir.'/bin/template.php';
+        $link = "{$dir}/template-".substr(hash('sha256', $target), 0, 16).'.php';
+
+        foreach (glob("{$dir}/template-*.php") ?: [] as $file) {
+            if ($file !== $link && is_link($file) && ! file_exists($file)) {
+                @unlink($file);
+            }
+        }
+
+        if (@readlink($link) === $target) {
+            return $link;
+        }
+
+        $tmp = "{$dir}/.template.".getmypid().'.'.bin2hex(random_bytes(4)).'.tmp';
+
+        if (function_exists('symlink') && @symlink($target, $tmp)) {
+            if (@rename($tmp, $link)) {
+                return $link;
+            }
+
+            @unlink($tmp);
+        }
+
+        return self::copy($dir, 'template', 'php', (string) file_get_contents($target));
+    }
+
     /** A copy of a package file in $dir, named by its content, so pruning a release can't remove it. */
     public static function copy(string $dir, string $name, string $extension, string $contents): string
     {

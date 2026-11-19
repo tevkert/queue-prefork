@@ -36,12 +36,12 @@ final class TemplateHarness
         $master = $masterPid ?? getmypid();
         $this->statusDir = $this->runtimeDir.'/'.Identity::key($master, Identity::startTime($master));
         RuntimeDir::ensure($this->statusDir);
-        RuntimeDir::writeAtomic($this->runtimeDir, 'template.php', (string) file_get_contents($root.'/bin/template.php'));
+        $launcher = RuntimeDir::launcher($this->runtimeDir, $root);
         $this->out = $this->runtimeDir.'/events.jsonl';
         touch($this->out);
 
         $command = [PHP_BINARY, '-d', 'opcache.enable=1', '-d', 'opcache.enable_cli=1', '-d', 'opcache.revalidate_freq=0',
-            '-d', 'display_errors=stderr', '-d', 'hp.pad='.str_repeat('.', 4096), '-d', 'auto_prepend_file=', $this->runtimeDir.'/template.php'];
+            '-d', 'display_errors=stderr', '-d', 'hp.pad='.str_repeat('.', 4096), '-d', 'auto_prepend_file=', $launcher];
         $env = array_merge(getenv(), [
             'HP_PACKAGE_DIR' => $root,
             'HP_MASTER_PID' => (string) $master,

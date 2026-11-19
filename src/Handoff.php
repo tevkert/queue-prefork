@@ -421,7 +421,7 @@ final class Handoff
     /** Starts this key's template, detached from this process's session. */
     private function launch(): void
     {
-        $template = RuntimeDir::copy($this->runtime, 'template', 'php', (string) file_get_contents(dirname(__DIR__).'/bin/template.php'));
+        $template = RuntimeDir::launcher($this->runtime, dirname(__DIR__));
         RuntimeDir::writeAtomic($this->runtime, "{$this->key16}.ini.json", json_encode(TemplateKey::iniValues(), JSON_UNESCAPED_SLASHES));
 
         $command = [PHP_BINARY, ...self::phpOptions()];

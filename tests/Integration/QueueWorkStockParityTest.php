@@ -35,8 +35,9 @@ class QueueWorkStockParityTest extends QueueWorkCase
 
     public function test_every_fixture_ends_as_in_stock(): void
     {
-        // All but `crashes` (QueueWorkParityTest has it) and `calls-artisan` (its own test): random values, connections, Concurrency::run,
-        // batches, releases, failures, a timeout kill, a --memory exit, output.
+        // All but `crashes` (QueueWorkParityTest has it), `calls-artisan` and `fails-in-vendor` (their own
+        // tests): random values, connections, Concurrency::run, batches, releases, failures, a timeout
+        // kill, a --memory exit, output.
         self::both(fn ($c) => self::artisan($c, 'fixtures:dispatch --queue='.self::QUEUE));
         $outcomes = [];
 
@@ -73,6 +74,21 @@ class QueueWorkStockParityTest extends QueueWorkCase
         }
 
         $this->assertSame($seen[self::STOCK], $seen[self::PREFORK], 'SIGALRM does after the command what it does in stock');
+    }
+
+    public function test_error_trackers_see_a_failed_job_as_in_stock(): void
+    {
+        // As in StockParityTest: a job failing in vendor code only, through Flare, Sentry and Nightwatch.
+        self::both(fn ($c) => self::artisan($c, 'fixtures:dispatch fails-in-vendor --queue='.self::QUEUE));
+        $seen = [];
+
+        foreach (self::BOTH as $container) {
+            $seen[$container] = self::waitUntil(fn () => self::rows($container, 'ErrorTrackers'), 30, "ErrorTrackers in {$container}")[0]['value'];
+        }
+
+        $this->assertSame([], $seen[self::STOCK]['flare_app_frames'], 'stock: no frame is the app\'s');
+        $this->assertSame($seen[self::STOCK]['thrown_at'], $seen[self::STOCK]['flare_first_frame'], 'stock: Flare keeps the trace from where it was thrown');
+        $this->assertSame($seen[self::STOCK], $seen[self::PREFORK]);
     }
 
     public function test_concurrent_workers_draw_different_random_numbers(): void
