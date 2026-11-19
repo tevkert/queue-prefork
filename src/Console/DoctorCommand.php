@@ -28,7 +28,8 @@ class DoctorCommand extends Command
         $horizon = class_exists(MasterSupervisor::class);
         $release = realpath(base_path()) ?: base_path();
         $pidOne = PHP_OS_FAMILY === 'Linux' ? str_replace("\0", ' ', (string) @file_get_contents('/proc/1/cmdline')) : '';
-        $reasons = $horizon ? [...Switches::off($release, 'horizon'), ...Preflight::check($this->laravel), ...self::pidOne($pidOne, 'horizon')] : [];
+        $inline = (bool) $this->laravel['config']->get('queue-prefork.horizon_inline', false);
+        $reasons = $horizon ? [...Switches::off($release, 'horizon'), ...Preflight::check($this->laravel, inline: $inline), ...self::pidOne($pidOne, 'horizon')] : [];
         $queueWork = self::queueWork($release, self::pidOne($pidOne, 'queue:work'));
         $warnings = [...self::hostWarnings($horizon), ...$this->earlyMismatches($release)];
 

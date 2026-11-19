@@ -4,6 +4,7 @@ namespace Tevkert\QueuePrefork;
 
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Redis;
+use Laravel\Horizon\Events\MasterSupervisorLooped;
 use Laravel\Horizon\MasterSupervisor;
 use Laravel\Horizon\SupervisorOptions;
 use Tevkert\QueuePrefork\Client\Broker;
@@ -75,19 +76,39 @@ final class Master
     /** @var array<string, ForkedProcess> supervisor name => current unit handle */
     private array $units = [];
 
+    /** @var array<string, list<float>> supervisor name => recent exits of its workers before their first loop */
+    private array $earlyWorkerExits = [];
+
     public function __construct(private Application $app) {}
 
-    public function start(?callable $warn = null): bool
+    /**
+     * @param  bool|null  $inline  the app runs its supervisors in this process and asks for their workers through
+     *                             workerProcess(), so its own AddSupervisor binding is expected, not a conflict;
+     *                             null reads queue-prefork.horizon_inline, which the doctor reads too
+     */
+    public function start(?callable $warn = null, ?bool $inline = null): bool
     {
         Runtime::preload();
+        $inline ??= (bool) $this->app['config']->get('queue-prefork.horizon_inline', false);
+
+        if ($inline && ($off = $this->inlineOff()) !== null) {
+            $this->reason = $off;
+
+            return false;
+        }
 
         try {
-            $reasons = Preflight::check($this->app);
+            $reasons = Preflight::check($this->app, inline: $inline);
 
             if ($reasons === [] && $this->startTemplate()) {
                 $this->active = true;
                 $this->mode = 'prefork';
                 Report::event('PreforkStarted', ['template' => $this->template['pid'] ?? null], 'info');
+
+                if ($inline) {
+                    // The app's own horizon command runs the loop: nothing else registers this.
+                    $this->app['events']->listen(MasterSupervisorLooped::class, fn () => $this->tick());
+                }
 
                 return true;
             }
@@ -111,6 +132,21 @@ final class Master
         }
 
         return false;
+    }
+
+    /**
+     * Why an inline start stays stock: Wiring checks the same switches before it binds the package's own
+     * command, which an app running its supervisors in the master replaces with its own.
+     */
+    private function inlineOff(): ?string
+    {
+        $off = Support\Switches::off(base_path(), 'horizon');
+
+        if ($off !== []) {
+            return implode('; ', $off);
+        }
+
+        return Settings::enabled($this->app, 'horizon') ? null : 'switched off ('.Settings::switchSource($this->app, 'horizon').')';
     }
 
     /** Called on every MasterSupervisorLooped (and so also while paused). */
@@ -156,6 +192,68 @@ final class Master
         };
 
         return $this->units[$options->name] = $unit;
+    }
+
+    /**
+     * A worker forked by the template for a supervisor that runs in this process, or null for a stock one:
+     * when nothing forks, for a command line the template does not run, or once the supervisor's workers kept
+     * exiting before their first loop. A handle once forked stays forked when its worker restarts.
+     */
+    public function workerProcess(SupervisorOptions $options): ?ForkedProcess
+    {
+        if (! $this->canForkUnits() || isset($this->stockNames[$options->name])) {
+            return null;
+        }
+
+        $line = $options->toWorkerCommand();
+
+        try {
+            CommandLine::parse($line, ['horizon:work']);
+        } catch (Throwable $e) {
+            $this->stockNames[$options->name] = $e->getMessage();
+
+            return null;
+        }
+
+        $worker = new ForkedProcess($this->broker, 'worker', $line, $options->directory ?? base_path(), ! config('horizon.fast_termination'));
+        $worker->onExit = function (ForkedProcess $process, int $status, bool $wasReady) use ($options): void {
+            $this->workerExited($options->name, $process, $status, $wasReady);
+        };
+
+        return $worker;
+    }
+
+    /**
+     * Whether a stopped forked worker of $supervisor needs a new handle: Horizon restarts a worker on the
+     * handle it has, which still forks through a template that is gone, or for a supervisor now stock.
+     */
+    public function retires(ForkedProcess $worker, string $supervisor): bool
+    {
+        return $worker->serverGone() || isset($this->stockNames[$supervisor]);
+    }
+
+    /** The unit breaker of Link::workerExited(), kept here per supervisor, as no loop of its own runs it. */
+    private function workerExited(string $supervisor, ForkedProcess $process, int $status, bool $wasReady): void
+    {
+        if ($wasReady || $status === 0 || $process->parentSignalled || in_array($status, [137, 75, 72], true)) {
+            return;
+        }
+
+        $now = microtime(true);
+
+        if ($now - $process->spawnedAt > 120) {
+            return;
+        }
+
+        $window = (float) Runtime::config('breaker_window', 300);
+        $exits = array_values(array_filter($this->earlyWorkerExits[$supervisor] ?? [], fn (float $at) => $now - $at < $window));
+        $exits[] = $now;
+        $this->earlyWorkerExits[$supervisor] = $exits;
+
+        if (count($exits) >= (int) Runtime::config('breaker_exits', 5)) {
+            $this->stockNames[$supervisor] = 'crash breaker';
+            Report::event('BreakerTripped', ['scope' => 'supervisor', 'supervisor' => $supervisor, 'status' => $status]);
+        }
     }
 
     public function statusDir(): string

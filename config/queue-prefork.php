@@ -10,6 +10,11 @@ return [
     'queue_work' => env('QUEUE_PREFORK_QUEUE_WORK', true),
     'horizon' => env('QUEUE_PREFORK_HORIZON', true),
 
+    // The app runs Horizon's supervisors inside the master and asks the template only for their workers
+    // (Master::start(inline: true), ForksWorkersFromTemplate). Its own AddSupervisor binding is then expected;
+    // the doctor checks this mode instead of the forked supervisors.
+    'horizon_inline' => env('QUEUE_PREFORK_HORIZON_INLINE', false),
+
     // The templates' opcache. Its shared memory holds the compiled code of the whole app.
     'opcache' => [
         'memory_consumption' => env('QUEUE_PREFORK_OPCACHE_MB', 192),

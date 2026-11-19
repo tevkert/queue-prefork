@@ -135,6 +135,7 @@ class ForkedProcess extends Process
         $this->broker->request("spawn:{$this->id}", [
             't' => 'spawn',
             'id' => $this->id,
+            'role' => $this->role,
             'cmd' => $this->line,
             'cwd' => $this->directory,
             'env' => getenv(),
@@ -214,6 +215,12 @@ class ForkedProcess extends Process
         if ($this->desiredPaused !== $this->pausedAtAdmit) {
             $this->sendSignal($this->desiredPaused ? SIGUSR2 : SIGCONT);
         }
+    }
+
+    /** Whether the server this handle forks through is gone: starting it again can only fail. */
+    public function serverGone(): bool
+    {
+        return $this->broker->lost;
     }
 
     /** @internal */

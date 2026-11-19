@@ -5,10 +5,15 @@
 use Tevkert\QueuePrefork\Runtime;
 
 $exit = 0;
+$hold = 0;
 
 foreach ($argv as $arg) {
     if (str_starts_with($arg, '--exit=')) {
         $exit = (int) substr($arg, 7);
+    }
+
+    if (str_starts_with($arg, '--hold=')) {
+        $hold = (int) substr($arg, 7);
     }
 }
 
@@ -28,5 +33,9 @@ file_put_contents(getenv('HP_TEST_OUT'), json_encode([
     'opcache' => function_exists('opcache_get_status') ? (bool) (opcache_get_status(false)['opcache_enabled'] ?? false) : false,
     'stdin_ok' => is_resource(STDIN) && @stream_isatty(STDIN) === false,
 ])."\n", FILE_APPEND | LOCK_EX);
+
+if ($hold > 0) {
+    sleep($hold); // a signal with its default action ends it here
+}
 
 exit($exit);

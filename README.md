@@ -153,6 +153,15 @@ Each `queue:work` process hands itself to a shared template before Laravel boots
 - **Horizon works as usual,** because supervisor and worker code is Horizon's own: the dashboard, `horizon:terminate`, `pause`, `continue`, `purge`, autoscaling, and supervisord's `stopasgroup` and `killasgroup`.
 - **Fallbacks.** A failed check runs the stock master in the same pid. If the template dies on Linux, Horizon exits and your process manager restarts it. A supervisor whose workers keep dying before their first loop is replaced by a stock one; a supervisor and its workers are always all forked or all stock. Each fallback logs a `queue-prefork:` error line and fires an event.
 
+### Supervisors inside the master
+
+Some apps run Horizon's supervisors inside the master instead of one process each. Their workers can still be forked: the template forks each worker itself, on the master's request, with no fork server in between.
+
+- **Turn it on** with `QUEUE_PREFORK_HORIZON_INLINE=true` (config `horizon_inline`), which the doctor reads too.
+- **In the app's own `horizon` command,** call `app(Tevkert\QueuePrefork\Master::class)->start()` before the provisioning plan deploys, when the container has that class bound (the package binds it only for `artisan horizon`). It returns false and changes nothing when the package is switched off or a check fails.
+- **Give each in-process supervisor a process pool that uses `Tevkert\QueuePrefork\Horizon\ForksWorkersFromTemplate`.** Its workers are forked while the master runs this way and exec'd as stock otherwise. A stopped worker whose template is gone, or whose supervisor the crash breaker turned stock, gets a new handle, forked again or stock, instead of being restarted on the old one.
+- **Don't run `horizon:purge` in this mode.** It looks for workers among the children of supervisor processes, and these workers are the template's children.
+
 ### Fork safety
 
 Before forking, a template audits itself: sockets, epoll, eventfd or extra threads that extensions open at startup mean stock workers. ddtrace, Elastic APM and gRPC with fork support (`grpc.enable_fork_support=1`, which rebuilds its threads and poller in each fork) are allowed; workers run stock with New Relic, gRPC without fork support, datadog-profiling and Blackfire.

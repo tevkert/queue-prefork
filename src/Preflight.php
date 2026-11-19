@@ -19,8 +19,11 @@ use Throwable;
  */
 final class Preflight
 {
-    /** @return list<string> */
-    public static function check(Application $app, bool $probes = true): array
+    /**
+     * @param  bool  $inline  the app's supervisors run in the master, which forks only their workers
+     * @return list<string>
+     */
+    public static function check(Application $app, bool $probes = true, bool $inline = false): array
     {
         $reasons = [];
         $config = (array) $app['config']->get('queue-prefork', []);
@@ -53,7 +56,12 @@ final class Preflight
         $horizon = self::horizonVersion();
 
         // The bindings and command strings are Horizon's too: read them only from a Horizon that has them.
-        $reasons = array_merge($reasons, $horizon, $horizon === [] ? [...self::bindings($app), ...self::commandStrings($app)] : [], self::extensions($config));
+        $reasons = array_merge(
+            $reasons,
+            $horizon,
+            $horizon === [] ? [...($inline ? [] : self::bindings($app)), ...self::commandStrings($app)] : [],
+            self::extensions($config),
+        );
 
         if ($probes && $reasons === []) {
             $reasons = array_merge($reasons, self::probes($app));
