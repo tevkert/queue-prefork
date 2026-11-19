@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-11-19
+
+- **Workers survive `Artisan::call()`:** Laravel fires `CommandFinished` for `Artisan::call()` too, and the package armed its exit watchdog on that event. A job that ran an Artisan command and kept working for more than 15 seconds (`exit_grace`) had its worker killed mid-job, in Horizon and in plain `queue:work` alike. The job wasn't marked failed; it ran again after `retry_after`. The watchdog is now armed when the console kernel terminates, which Laravel does only for the process's own command. Contributed by Ali Gulzar (#4).
+
 ## [1.1.0] - 2026-11-18
 
 - **Any Horizon 5 release:** prefork no longer turns off on a Horizon minor newer than the last tested one, as it did on 5.51 and 5.52. Instead it checks the Horizon classes it extends: every method it overrides must be declared as in Horizon 5.23–5.52, and every method and property it uses must still be there and public. If anything differs, Horizon runs stock, and `queue-prefork:doctor` names what changed. A changed signature can no longer stop Horizon with a fatal error either, because the check runs before the package's subclasses load.
@@ -45,6 +49,7 @@ First release: Laravel queue workers run as forks of a template process that sha
 - **Commands:** `queue-prefork:doctor`, `queue-prefork:status`, `queue-prefork:switch` and `queue-prefork:retire`.
 - Developed as `horizon-prefork` before the first release, which only covered Horizon.
 
+[1.1.1]: https://github.com/tevkert/queue-prefork/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/tevkert/queue-prefork/compare/v1.0.5...v1.1.0
 [1.0.5]: https://github.com/tevkert/queue-prefork/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/tevkert/queue-prefork/compare/v1.0.3...v1.0.4
