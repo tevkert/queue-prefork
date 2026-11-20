@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Redis;
 use Laravel\Horizon\Events\MasterSupervisorLooped;
 use Laravel\Horizon\MasterSupervisor;
 use Laravel\Horizon\SupervisorOptions;
+use Tevkert\QueuePrefork\Client\Breaker;
 use Tevkert\QueuePrefork\Client\Broker;
 use Tevkert\QueuePrefork\Client\Direct;
 use Tevkert\QueuePrefork\Client\ForkedProcess;
@@ -76,8 +77,8 @@ final class Master
     /** @var array<string, ForkedProcess> supervisor name => current unit handle */
     private array $units = [];
 
-    /** @var array<string, list<float>> supervisor name => recent exits of its workers before their first loop */
-    private array $earlyWorkerExits = [];
+    /** @var array<string, Breaker> supervisor name => the crash breaker of its forked workers (inline) */
+    private array $breakers = [];
 
     public function __construct(private Application $app) {}
 
@@ -251,25 +252,10 @@ final class Master
         Report::event('UnitStock', ['supervisor' => $supervisor, 'reason' => $this->stockNames[$supervisor]]);
     }
 
-    /** The unit breaker of Link::workerExited(), kept here per supervisor, as no loop of its own runs it. */
+    /** The crash breaker a unit's loop runs (Link::workerExited()), kept here per supervisor, as no loop of its own runs it. */
     private function workerExited(string $supervisor, ForkedProcess $process, int $status, bool $wasReady): void
     {
-        if ($wasReady || $status === 0 || $process->parentSignalled || in_array($status, [137, 75, 72], true)) {
-            return;
-        }
-
-        $now = microtime(true);
-
-        if ($now - $process->spawnedAt > 120) {
-            return;
-        }
-
-        $window = (float) Runtime::config('breaker_window', 300);
-        $exits = array_values(array_filter($this->earlyWorkerExits[$supervisor] ?? [], fn (float $at) => $now - $at < $window));
-        $exits[] = $now;
-        $this->earlyWorkerExits[$supervisor] = $exits;
-
-        if (count($exits) >= (int) Runtime::config('breaker_exits', 5)) {
+        if (($this->breakers[$supervisor] ??= new Breaker)->trips($process, $status, $wasReady)) {
             $this->stockNames[$supervisor] = 'crash breaker';
             Report::event('BreakerTripped', ['scope' => 'supervisor', 'supervisor' => $supervisor, 'status' => $status]);
         }

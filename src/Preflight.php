@@ -55,6 +55,10 @@ final class Preflight
 
         $horizon = self::horizonVersion();
 
+        if ($inline && $horizon === []) {
+            $horizon = Compatibility::inlineReasons();
+        }
+
         // The bindings and command strings are Horizon's too: read them only from a Horizon that has them.
         $reasons = array_merge(
             $reasons,

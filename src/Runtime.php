@@ -15,7 +15,7 @@ final class Runtime
 
     /** The package's classes that don't extend the framework's (PHP's own count as none): what preload() loads. */
     public const CLASSES = [
-        Client\Broker::class, Client\Direct::class, Client\Report::class, Handoff::class, Horizon\Compatibility::class, Link::class,
+        Client\Breaker::class, Client\Broker::class, Client\Direct::class, Client\Report::class, Handoff::class, Horizon\Compatibility::class, Link::class,
         Master::class, MasterHandoff::class, Preflight::class, QueueWorkerLink::class, Runtime::class, Settings::class,
         Wiring::class, WorkerLink::class, Server\ChildJob::class, Server\ChildRoutine::class, Server\Opcache::class,
         Server\RoleGuard::class, Server\SharedLog::class, Server\Signals::class, Server\Template::class,

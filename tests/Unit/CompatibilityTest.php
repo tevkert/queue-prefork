@@ -3,8 +3,10 @@
 namespace Tevkert\QueuePrefork\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Laravel\Horizon\ProcessPool;
 use ReflectionClass;
 use Tevkert\QueuePrefork\Horizon\Compatibility;
+use Tevkert\QueuePrefork\Tests\Fixtures\InlinePool;
 
 class CompatibilityTest extends TestCase
 {
@@ -60,6 +62,32 @@ class CompatibilityTest extends TestCase
         $this->assertSame($this->sorted(array_keys(Compatibility::OVERRIDDEN)), $overridden);
         $this->assertSame($this->sorted(Compatibility::ADDED), $added);
         $this->assertSame($this->sorted(array_values(self::SUBCLASSES)), $this->sorted(Compatibility::EXTENDED));
+    }
+
+    public function test_the_inline_list_covers_what_the_trait_declares(): void
+    {
+        $this->assertSame([], Compatibility::inlineReasons());
+
+        $overridden = [];
+        $added = [];
+
+        foreach ((new ReflectionClass(InlinePool::class))->getMethods() as $method) {
+            if ($method->getDeclaringClass()->getName() !== InlinePool::class) {
+                continue;
+            }
+
+            $name = ProcessPool::class.'::'.$method->getName();
+
+            if (method_exists(ProcessPool::class, $method->getName())) {
+                $overridden[] = $name;
+                $this->assertSame(Compatibility::INLINE['overridden'][$name] ?? null, Compatibility::signature($method), $name);
+            } else {
+                $added[] = $name;
+            }
+        }
+
+        $this->assertSame($this->sorted(array_keys(Compatibility::INLINE['overridden'])), $this->sorted($overridden));
+        $this->assertSame($this->sorted(Compatibility::INLINE['added']), $this->sorted($added));
     }
 
     public function test_a_method_that_now_returns_by_reference_is_a_reason(): void

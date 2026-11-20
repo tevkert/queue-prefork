@@ -91,6 +91,32 @@ final class Compatibility
     ];
 
     /**
+     * What an app's process pool relies on through ForksWorkersFromTemplate, checked only in inline mode
+     * (Preflight), so a change here never turns the package's own supervisors stock. The daily check of new
+     * Horizon releases covers it all the same.
+     */
+    public const INLINE = [
+        'overridden' => [
+            'Laravel\Horizon\ProcessPool::createProcess' => 'protected createProcess()',
+            'Laravel\Horizon\ProcessPool::monitor' => 'public monitor()',
+        ],
+        'called' => [
+            'Laravel\Horizon\WorkerProcess::__construct' => 1,
+            'Laravel\Horizon\WorkerProcess::handleOutputUsing' => 1,
+        ],
+        'read' => [
+            'Laravel\Horizon\ProcessPool::$options' => 'public',
+            'Laravel\Horizon\ProcessPool::$processes' => 'public',
+            'Laravel\Horizon\ProcessPool::$output' => 'public',
+            'Laravel\Horizon\WorkerProcess::$process' => 'public',
+        ],
+        'added' => [
+            'Laravel\Horizon\ProcessPool::preforkMaster',
+            'Laravel\Horizon\ProcessPool::replaceRetiredWorkers',
+        ],
+    ];
+
+    /**
      * What keeps the master's command from being replaced: the one override loaded before preflight.
      *
      * @return list<string>
@@ -103,6 +129,19 @@ final class Compatibility
             [],
             [],
             [],
+            [],
+        );
+    }
+
+    /** @return list<string> what keeps an app's pool with ForksWorkersFromTemplate from forking its workers */
+    public static function inlineReasons(): array
+    {
+        return self::reasons(
+            ['Laravel\Horizon\ProcessPool'],
+            self::INLINE['overridden'],
+            self::INLINE['called'],
+            self::INLINE['read'],
+            self::INLINE['added'],
             [],
         );
     }
