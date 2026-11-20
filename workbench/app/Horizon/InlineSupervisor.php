@@ -3,8 +3,10 @@
 namespace App\Horizon;
 
 use Laravel\Horizon\Contracts\SupervisorRepository;
+use Laravel\Horizon\ProcessPool;
 use Laravel\Horizon\Supervisor;
 use Laravel\Horizon\SupervisorOptions;
+use Tevkert\QueuePrefork\Master;
 
 /**
  * A supervisor that runs inside the master process (HORIZON_INLINE=true), as some apps run theirs. The
@@ -18,11 +20,16 @@ class InlineSupervisor extends Supervisor
 
     private bool $terminated = false;
 
+    /** The pool with the package's trait only once the package's master started; Horizon's own otherwise. */
     protected function createProcessPool(SupervisorOptions $options)
     {
-        return new InlineProcessPool($options, function ($type, $line) {
+        $output = function ($type, $line) {
             $this->output($type, $line);
-        });
+        };
+
+        return app()->bound(Master::class) && app(Master::class)->active
+            ? new InlineProcessPool($options, $output)
+            : new ProcessPool($options, $output);
     }
 
     public function monitor()

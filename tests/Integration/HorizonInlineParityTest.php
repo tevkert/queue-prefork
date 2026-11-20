@@ -42,16 +42,20 @@ class HorizonInlineParityTest extends IntegrationCase
         self::waitBoth(fn ($c) => self::rows($c, 'Sleeps.started') === 2, 30, '2 running jobs');
 
         self::both(fn ($c) => self::artisan($c, 'horizon:pause'));
-        self::both(fn ($c) => self::artisan($c, 'fixtures:dispatch succeeds --times=2 --queue=notify'));
-        self::waitBoth(fn ($c) => self::rows($c, 'Sleeps') === 2, 30, 'the running jobs to finish while paused');
-        sleep(5);
 
-        $paused = self::outcomes();
-        $this->assertSame(0, $paused[self::STOCK]['succeeds'], 'stock takes no new job while paused');
-        $this->assertSame(['paused'], array_values(array_unique($paused[self::STOCK]['supervisors'])));
-        $this->assertSame($paused[self::STOCK], $paused[self::PREFORK], 'paused: the same in both');
+        try {
+            self::both(fn ($c) => self::artisan($c, 'fixtures:dispatch succeeds --times=2 --queue=notify'));
+            self::waitBoth(fn ($c) => self::rows($c, 'Sleeps') === 2, 30, 'the running jobs to finish while paused');
+            sleep(5);
 
-        self::both(fn ($c) => self::artisan($c, 'horizon:continue'));
+            $paused = self::outcomes();
+            $this->assertSame(0, $paused[self::STOCK]['succeeds'], 'stock takes no new job while paused');
+            $this->assertSame(['paused'], array_values(array_unique($paused[self::STOCK]['supervisors'])));
+            $this->assertSame($paused[self::STOCK], $paused[self::PREFORK], 'paused: the same in both');
+        } finally {
+            self::both(fn ($c) => self::artisan($c, 'horizon:continue'));
+        }
+
         self::waitBoth(fn ($c) => self::rows($c, 'Succeeds') === 2, 30, 'the queued jobs after continue');
 
         $after = self::outcomes();
@@ -72,7 +76,6 @@ class HorizonInlineParityTest extends IntegrationCase
 
         self::both(fn ($c) => self::artisan($c, 'horizon:terminate'));
 
-        // Every process of the old tree exits, and supervisord starts Horizon again in the same shape.
         self::waitBoth(function ($c) use ($before) {
             foreach ($before[$c] as $process) {
                 if (self::alive($c, $process['pid'], $process['start'])) {
@@ -133,9 +136,15 @@ class HorizonInlineParityTest extends IntegrationCase
             }
         }
 
+        // Stock workers are the master's children; forked ones the template's, in every supervisor.
+        $templates = self::role($state, 'template');
+        $parent = $container === self::PREFORK ? ($templates[0]['pid'] ?? null) : $masters[0]['pid'];
+
         foreach (self::SUPERVISORS as $name => $minimum) {
-            if (count(self::workersIn($state, $name)) < $minimum) {
-                return "{$minimum}+ workers for {$name}";
+            $workers = self::workersIn($state, $name);
+
+            if (count($workers) < $minimum || array_diff(array_column($workers, 'ppid'), [$parent]) !== []) {
+                return "{$minimum}+ workers for {$name}, all ".($container === self::PREFORK ? 'forked by the template' : 'exec\'d by the master');
             }
         }
 
