@@ -83,6 +83,9 @@ HP_INTEGRATION=1 vendor/bin/phpunit --testsuite Integration    # Horizon's tests
 HORIZON_HOST=false docker compose -f docker/compose.yml up -d --force-recreate app-prefork   # the master spawns its template (fallback mode)
 HP_INTEGRATION=1 vendor/bin/phpunit tests/Integration/HorizonPreforkTest.php tests/Integration/LifecycleParityTest.php
 docker compose -f docker/compose.yml up -d --force-recreate app-prefork                     # back to host mode
+HORIZON_INLINE=true docker compose -f docker/compose.yml up -d --force-recreate app-prefork  # supervisors inside the master
+HP_INTEGRATION=1 vendor/bin/phpunit tests/Integration/HorizonInlineTest.php                  # skips unless the stack runs inline
+docker compose -f docker/compose.yml up -d --force-recreate app-prefork                     # back to a process per supervisor
 HORIZON=false QUEUE_WORK=true docker compose -f docker/compose.yml up -d --force-recreate app-stock app-prefork
 HP_INTEGRATION=1 vendor/bin/phpunit tests/Integration/QueueWorkParityTest.php
 ```
@@ -136,6 +139,7 @@ Host environment, read when a container is created (`up -d --force-recreate`):
 | `QUEUE_WORK_STOPWAIT` | `10` | their supervisord `stopwaitsecs` |
 | `SUPERVISOR_STOPASGROUP` | `true` | supervisord `stopasgroup` (`killasgroup` is always `true`) |
 | `HORIZON_FAST_TERMINATION` | `true` | `horizon.fast_termination` |
+| `HORIZON_INLINE` | `false` | supervisors inside the master (the workbench's `App\Horizon` classes), the template forking their workers |
 | `CONFIG_CACHE` | `true` | `optimize` + `filament:optimize` at start; `false` runs uncached |
 | `NIGHTWATCH_ENABLED` / `PULSE_ENABLED` | `true` / `true` | switch the two monitoring packages off, e.g. to measure their cost |
 | `SOAK_DISPATCH` / `SOAK_RATE` / `SOAK_DURATION` / `SOAK_SEED` | `false` / `420` / `60` / `1` | the `soak-dispatch` program (jobs/min, minutes, seed) |

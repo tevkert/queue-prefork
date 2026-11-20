@@ -29,7 +29,8 @@ trait ForksWorkersFromTemplate
 
     /**
      * Horizon restarts a stopped worker on the handle it has. A forked handle whose template is gone, or whose
-     * supervisor the crash breaker turned stock, gets a new one instead: forked again, or stock.
+     * supervisor turned stock (the crash breaker, or a worker the template could not fork), gets a new one
+     * instead: forked again, or stock.
      */
     protected function replaceRetiredWorkers(): void
     {

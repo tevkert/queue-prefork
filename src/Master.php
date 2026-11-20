@@ -196,8 +196,9 @@ final class Master
 
     /**
      * A worker forked by the template for a supervisor that runs in this process, or null for a stock one:
-     * when nothing forks, for a command line the template does not run, or once the supervisor's workers kept
-     * exiting before their first loop. A handle once forked stays forked when its worker restarts.
+     * when nothing forks, for a command line the template does not run, once the supervisor's workers kept
+     * exiting before their first loop, or once the template could not fork one of them. A handle once forked
+     * stays forked when its worker restarts.
      */
     public function workerProcess(SupervisorOptions $options): ?ForkedProcess
     {
@@ -219,6 +220,9 @@ final class Master
         $worker->onExit = function (ForkedProcess $process, int $status, bool $wasReady) use ($options): void {
             $this->workerExited($options->name, $process, $status, $wasReady);
         };
+        $worker->onSpawnFailed = function (ForkedProcess $process, string $reason) use ($options): void {
+            $this->workerSpawnFailed($options->name, $process, $reason);
+        };
 
         return $worker;
     }
@@ -230,6 +234,21 @@ final class Master
     public function retires(ForkedProcess $worker, string $supervisor): bool
     {
         return $worker->serverGone() || isset($this->stockNames[$supervisor]);
+    }
+
+    /**
+     * A worker the template could not fork turns its supervisor stock: the pool replaces the handle with an
+     * exec'd worker instead of asking the template again on every restart. A lost template needs nothing here:
+     * every handle retires and nothing forks any more.
+     */
+    private function workerSpawnFailed(string $supervisor, ForkedProcess $process, string $reason): void
+    {
+        if ($process->serverGone() || isset($this->stockNames[$supervisor])) {
+            return;
+        }
+
+        $this->stockNames[$supervisor] = 'worker spawn failed: '.$reason;
+        Report::event('UnitStock', ['supervisor' => $supervisor, 'reason' => $this->stockNames[$supervisor]]);
     }
 
     /** The unit breaker of Link::workerExited(), kept here per supervisor, as no loop of its own runs it. */

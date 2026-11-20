@@ -8,6 +8,8 @@
 #                                           (default true), or spawning its template as a child
 #   SUPERVISOR_STOPASGROUP=true|false       supervisord group mode (default true)
 #   HORIZON_FAST_TERMINATION=true|false     horizon.fast_termination (default true)
+#   HORIZON_INLINE=true|false               supervisors inside the master, the template forking their
+#                                           workers (default false)
 #   CONFIG_CACHE=true|false                 config:cache at start (default true)
 #   SOAK_DISPATCH, SOAK_MIX, SOAK_RATE, SOAK_DURATION, SOAK_SEED, SOAK_SAMPLE, SOAK_SAMPLE_INTERVAL   the soak
 name: queue-prefork
@@ -68,6 +70,8 @@ x-app-env: &app-env
   HORIZON_HOST: ${HORIZON_HOST:-true}
   SUPERVISOR_STOPASGROUP: ${SUPERVISOR_STOPASGROUP:-true}
   HORIZON_FAST_TERMINATION: ${HORIZON_FAST_TERMINATION:-true}
+  HORIZON_INLINE: ${HORIZON_INLINE:-false}
+  QUEUE_PREFORK_HORIZON_INLINE: ${HORIZON_INLINE:-false}
   CONFIG_CACHE: ${CONFIG_CACHE:-true}
   SOAK_DISPATCH: ${SOAK_DISPATCH:-false}
   SOAK_MIX: ${SOAK_MIX:-heavy}

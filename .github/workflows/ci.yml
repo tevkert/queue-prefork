@@ -152,6 +152,7 @@ jobs:
           - { name: Horizon · stopasgroup off, horizon: 'true', host: 'true', stopasgroup: 'false', fast: 'true', redis: phpredis, compose: '', tests: tests/Integration, experimental: false }
           - { name: Horizon · fast_termination off, horizon: 'true', host: 'true', stopasgroup: 'true', fast: 'false', redis: phpredis, compose: '', tests: tests/Integration, experimental: false }
           - { name: Horizon · master spawns its template, horizon: 'true', host: 'false', stopasgroup: 'true', fast: 'true', redis: phpredis, compose: '', tests: 'tests/Integration/HorizonPreforkTest.php tests/Integration/LifecycleParityTest.php', experimental: false }
+          - { name: Horizon · supervisors inside the master, horizon: 'true', host: 'true', stopasgroup: 'true', fast: 'true', inline: 'true', redis: phpredis, compose: '', tests: tests/Integration/HorizonInlineTest.php, experimental: false }
           - { name: Horizon · auto_prepend_file, horizon: 'true', host: 'true', stopasgroup: 'true', fast: 'true', redis: phpredis, compose: '-f compose.prepend.yml', tests: tests/Integration/StockParityTest.php, experimental: false }
           - { name: queue:work, horizon: 'false', host: 'true', stopasgroup: 'true', fast: 'true', redis: phpredis, compose: '', tests: 'tests/Integration/QueueWorkParityTest.php tests/Integration/QueueWorkStockParityTest.php tests/Integration/QueueWorkLifecycleTest.php', experimental: false }
           - { name: queue:work · stopasgroup off, horizon: 'false', host: 'true', stopasgroup: 'false', fast: 'true', redis: phpredis, compose: '', tests: 'tests/Integration/QueueWorkParityTest.php tests/Integration/QueueWorkStockParityTest.php tests/Integration/QueueWorkLifecycleTest.php', experimental: false }
@@ -163,6 +164,7 @@ jobs:
       HORIZON_HOST: ${{ matrix.host }}
       SUPERVISOR_STOPASGROUP: ${{ matrix.stopasgroup }}
       HORIZON_FAST_TERMINATION: ${{ matrix.fast }}
+      HORIZON_INLINE: ${{ matrix.inline || 'false' }}
       REDIS_CLIENT: ${{ matrix.redis }}
     steps:
       - uses: actions/checkout@v4

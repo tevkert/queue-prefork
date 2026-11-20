@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The project uses [Seman
 
 ## [Unreleased]
 
-- **Supervisors inside the master:** an app that runs Horizon's supervisors in the master process can have the template fork their workers directly (`horizon_inline`, `Master::start()`, `ForksWorkersFromTemplate`). The template's worker handling is shared with the fork servers (`WorkerSet`), and the template TERMs the workers it forked when its master is gone.
+- **Supervisors inside the master:** an app that runs Horizon's supervisors in the master process can have the template fork their workers directly (`horizon_inline`, `Master::start()`, `ForksWorkersFromTemplate`). The template's worker handling is shared with the fork servers (`WorkerSet`), and the template TERMs the workers it forked when its master is gone. A worker the template cannot fork turns its supervisor stock, and an exec'd worker takes its place.
 
 ## [1.1.2] - 2026-11-20
 
