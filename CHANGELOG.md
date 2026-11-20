@@ -2,9 +2,10 @@
 
 All notable changes to this project are documented here. The project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.2.0] - 2026-11-20
 
-- **Supervisors inside the master:** an app that runs Horizon's supervisors in the master process can have the template fork their workers directly (`horizon_inline`, `Master::start()`, `ForksWorkersFromTemplate`). The template's worker handling is shared with the fork servers (`WorkerSet`), and the template TERMs the workers it forked when its master is gone. A worker the template cannot fork turns its supervisor stock, and an exec'd worker takes its place.
+- **Supervisors inside the master:** some apps run their Horizon supervisors in the master process instead of one process each, which saves a process, and its Redis connections, per supervisor. Such an app had to run stock. With `QUEUE_PREFORK_HORIZON_INLINE=true`, a call to `Master::start()` in the app's own `horizon` command and the `ForksWorkersFromTemplate` trait on its process pool, the template forks those supervisors' workers directly. Every failure falls back to stock workers, as elsewhere. Apps that don't opt in run exactly as before. Contributed by Volodymyr Shandak (#7, #8).
+- **Paused workers after a restart:** a Horizon worker paused before its first loop, then continued, came back paused after its next restart (for example after `maxJobs` or `maxTime`) and took no jobs until the next pause and continue. It now restarts in the latest state.
 
 ## [1.1.2] - 2026-11-20
 
@@ -57,6 +58,7 @@ First release: Laravel queue workers run as forks of a template process that sha
 - **Commands:** `queue-prefork:doctor`, `queue-prefork:status`, `queue-prefork:switch` and `queue-prefork:retire`.
 - Developed as `horizon-prefork` before the first release, which only covered Horizon.
 
+[1.2.0]: https://github.com/tevkert/queue-prefork/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/tevkert/queue-prefork/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/tevkert/queue-prefork/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/tevkert/queue-prefork/compare/v1.0.5...v1.1.0
