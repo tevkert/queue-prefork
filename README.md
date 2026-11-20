@@ -158,7 +158,7 @@ Each `queue:work` process hands itself to a shared template before Laravel boots
 Some apps run Horizon's supervisors inside the master instead of one process each. Their workers can still be forked: the template forks each worker itself, on the master's request, with no fork server in between.
 
 - **Turn it on** with `QUEUE_PREFORK_HORIZON_INLINE=true` (config `horizon_inline`), which the doctor reads too.
-- **In the app's own `horizon` command,** call `app(Tevkert\QueuePrefork\Master::class)->start()` before the provisioning plan deploys, when the container has that class bound (the package binds it only for `artisan horizon`). It returns false and changes nothing when the package is switched off or a check fails.
+- **In the app's own `horizon` command,** call `app(Tevkert\QueuePrefork\Master::class)->start()` before the provisioning plan deploys, when the container has that class bound (the package binds it only for `artisan horizon`). In this mode the package leaves the `horizon` command to the app. It returns false and changes nothing when the package is switched off or a check fails.
 - **Give each in-process supervisor a process pool that uses `Tevkert\QueuePrefork\Horizon\ForksWorkersFromTemplate`.** Its workers are forked while the master runs this way and exec'd as stock otherwise. A worker the template cannot fork turns its supervisor stock (a `UnitStock` event). A stopped worker whose template is gone, or whose supervisor turned stock, gets a new handle, forked again or stock, instead of being restarted on the old one.
 - **Don't run `horizon:purge` in this mode.** It looks for workers among the children of supervisor processes, and these workers are the template's children.
 

@@ -18,7 +18,7 @@ class PreforkHorizonCommand extends HorizonCommand
     {
         $prefork = $this->laravel->make(Master::class);
 
-        if ($prefork->start(fn (string $line) => $this->components->warn($line))) {
+        if ($prefork->start(fn (string $line) => $this->components->warn($line), inline: false)) {
             $this->laravel->bind(AddSupervisor::class, PreforkAddSupervisor::class);
             $this->laravel['events']->listen(MasterSupervisorLooped::class, fn () => $prefork->tick());
         }

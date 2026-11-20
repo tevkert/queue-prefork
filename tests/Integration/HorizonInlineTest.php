@@ -55,23 +55,6 @@ class HorizonInlineTest extends IntegrationCase
         $this->assertTrue($seen['opcache_enabled'], 'the worker runs on the shared opcache');
     }
 
-    public function test_pause_and_continue(): void
-    {
-        self::artisan(self::PREFORK, 'horizon:pause');
-
-        try {
-            self::waitUntil(fn () => array_unique(array_column(self::inspect()['supervisors'], 'status')) === ['paused'], 15, 'every supervisor paused');
-
-            self::artisan(self::PREFORK, 'fixtures:dispatch succeeds --times=3');
-            sleep(6);
-            $this->assertSame([], self::results(self::PREFORK, 'Succeeds'), 'paused workers take no jobs');
-        } finally {
-            self::artisan(self::PREFORK, 'horizon:continue');
-        }
-
-        self::waitUntil(fn () => count(self::results(self::PREFORK, 'Succeeds')) === 3, 20, 'the 3 jobs after continue');
-    }
-
     public function test_a_killed_worker_is_forked_again(): void
     {
         $state = self::waitForInlineShape();

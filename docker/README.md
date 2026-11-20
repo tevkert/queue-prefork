@@ -83,9 +83,9 @@ HP_INTEGRATION=1 vendor/bin/phpunit --testsuite Integration    # Horizon's tests
 HORIZON_HOST=false docker compose -f docker/compose.yml up -d --force-recreate app-prefork   # the master spawns its template (fallback mode)
 HP_INTEGRATION=1 vendor/bin/phpunit tests/Integration/HorizonPreforkTest.php tests/Integration/LifecycleParityTest.php
 docker compose -f docker/compose.yml up -d --force-recreate app-prefork                     # back to host mode
-HORIZON_INLINE=true docker compose -f docker/compose.yml up -d --force-recreate app-prefork  # supervisors inside the master
-HP_INTEGRATION=1 vendor/bin/phpunit tests/Integration/HorizonInlineTest.php                  # skips unless the stack runs inline
-docker compose -f docker/compose.yml up -d --force-recreate app-prefork                     # back to a process per supervisor
+HORIZON_INLINE=true docker compose -f docker/compose.yml up -d --force-recreate app-stock app-prefork  # supervisors inside the master
+HP_INTEGRATION=1 vendor/bin/phpunit tests/Integration/HorizonInlineTest.php tests/Integration/HorizonInlineParityTest.php  # skip unless the stacks run inline
+docker compose -f docker/compose.yml up -d --force-recreate app-stock app-prefork           # back to a process per supervisor
 HORIZON=false QUEUE_WORK=true docker compose -f docker/compose.yml up -d --force-recreate app-stock app-prefork
 HP_INTEGRATION=1 vendor/bin/phpunit tests/Integration/QueueWorkParityTest.php
 ```

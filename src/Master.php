@@ -42,6 +42,9 @@ final class Master
 
     public bool $active = false;
 
+    /** Started for an app that runs its supervisors in this process: only then does workerProcess() fork. */
+    private bool $inline = false;
+
     /** Host mode: the template is this master's parent, not its child; when it's gone, the master ends too. */
     private bool $hosted = false;
 
@@ -92,7 +95,7 @@ final class Master
         Runtime::preload();
         $inline ??= (bool) $this->app['config']->get('queue-prefork.horizon_inline', false);
 
-        if ($inline && ($off = $this->inlineOff()) !== null) {
+        if ($inline && ($off = Wiring::horizonOff($this->app)) !== null) {
             $this->reason = $off;
 
             return false;
@@ -103,6 +106,7 @@ final class Master
 
             if ($reasons === [] && $this->startTemplate()) {
                 $this->active = true;
+                $this->inline = $inline;
                 $this->mode = 'prefork';
                 Report::event('PreforkStarted', ['template' => $this->template['pid'] ?? null], 'info');
 
@@ -133,21 +137,6 @@ final class Master
         }
 
         return false;
-    }
-
-    /**
-     * Why an inline start stays stock: Wiring checks the same switches before it binds the package's own
-     * command, which an app running its supervisors in the master replaces with its own.
-     */
-    private function inlineOff(): ?string
-    {
-        $off = Support\Switches::off(base_path(), 'horizon');
-
-        if ($off !== []) {
-            return implode('; ', $off);
-        }
-
-        return Settings::enabled($this->app, 'horizon') ? null : 'switched off ('.Settings::switchSource($this->app, 'horizon').')';
     }
 
     /** Called on every MasterSupervisorLooped (and so also while paused). */
@@ -203,7 +192,7 @@ final class Master
      */
     public function workerProcess(SupervisorOptions $options): ?ForkedProcess
     {
-        if (! $this->canForkUnits() || isset($this->stockNames[$options->name])) {
+        if (! $this->inline || ! $this->canForkUnits() || isset($this->stockNames[$options->name])) {
             return null;
         }
 

@@ -3,6 +3,7 @@
 namespace Tevkert\QueuePrefork\Tests\Mechanics;
 
 use PHPUnit\Framework\TestCase;
+use Tevkert\QueuePrefork\Support\Identity;
 
 /**
  * A master that runs its supervisors in its own process asks the template for each worker directly
@@ -82,24 +83,23 @@ class TemplateWorkersTest extends TestCase
         $spawned = $this->t->await('spawned', 10, 'w4');
         $this->t->channel->send(['t' => 'admit', 'id' => 'w4', 'paused' => false]);
         $this->assertNotNull($this->t->await('ready', 10, 'w4'));
+        $this->assertTrue(self::running($spawned['pid'], $spawned['start']), 'the worker runs while its master does');
 
         posix_kill($masterPid, SIGKILL);
         proc_close($master);
 
         $deadline = microtime(true) + 15;
 
-        while (microtime(true) < $deadline && self::running($spawned['pid'])) {
+        while (microtime(true) < $deadline && self::running($spawned['pid'], $spawned['start'])) {
             usleep(100000);
         }
 
-        $this->assertFalse(self::running($spawned['pid']), 'the worker got TERM instead of outliving the template');
+        $this->assertFalse(self::running($spawned['pid'], $spawned['start']), 'the worker got TERM instead of outliving the template');
     }
 
     /** Running, not a zombie: an orphan waits to be reaped by whatever PID 1 is. */
-    private static function running(int $pid): bool
+    private static function running(int $pid, ?string $start): bool
     {
-        $stat = @file_get_contents("/proc/{$pid}/stat");
-
-        return $stat !== false && preg_match('/\) ([A-Z]) /', $stat, $m) === 1 && $m[1] !== 'Z';
+        return Identity::alive($pid, $start);
     }
 }
