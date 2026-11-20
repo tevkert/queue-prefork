@@ -32,6 +32,7 @@ file_put_contents(getenv('HP_TEST_OUT'), json_encode([
     'env' => getenv('HP_TEST_WORKER_ENV'),
     'opcache' => function_exists('opcache_get_status') ? (bool) (opcache_get_status(false)['opcache_enabled'] ?? false) : false,
     'stdin_ok' => is_resource(STDIN) && @stream_isatty(STDIN) === false,
+    'sockets' => fake_worker_sockets(),
 ])."\n", FILE_APPEND | LOCK_EX);
 
 if ($hold > 0) {
@@ -39,3 +40,23 @@ if ($hold > 0) {
 }
 
 exit($exit);
+
+/** @return list<string>|null the sockets this worker holds, as /proc names them (Linux only) */
+function fake_worker_sockets(): ?array
+{
+    if (PHP_OS_FAMILY !== 'Linux') {
+        return null;
+    }
+
+    $sockets = [];
+
+    foreach (glob('/proc/self/fd/*') ?: [] as $fd) {
+        $target = @readlink($fd);
+
+        if (is_string($target) && str_starts_with($target, 'socket:')) {
+            $sockets[] = $target;
+        }
+    }
+
+    return $sockets;
+}

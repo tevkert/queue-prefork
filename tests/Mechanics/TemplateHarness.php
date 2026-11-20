@@ -101,6 +101,22 @@ final class TemplateHarness
         ]);
     }
 
+    /** @return list<string> the sockets the template holds, its control channel among them (Linux only) */
+    public function templateSockets(): array
+    {
+        $sockets = [];
+
+        foreach (glob("/proc/{$this->ready['pid']}/fd/*") ?: [] as $fd) {
+            $target = @readlink($fd);
+
+            if (is_string($target) && str_starts_with($target, 'socket:')) {
+                $sockets[] = $target;
+            }
+        }
+
+        return $sockets;
+    }
+
     /** Waits for the next message of the given type (others are kept in $seen). */
     public function await(string $type, float $timeout = 10, ?string $id = null): ?array
     {

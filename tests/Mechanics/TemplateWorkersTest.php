@@ -47,6 +47,11 @@ class TemplateWorkersTest extends TestCase
         $this->assertSame('from-master', $worker['env'], 'the worker gets the requester\'s environment');
         $this->assertTrue($worker['opcache'], 'the worker shares the template\'s opcache');
         $this->assertTrue($worker['stdin_ok']);
+
+        if (PHP_OS_FAMILY === 'Linux') {
+            $this->assertNotEmpty($this->t->templateSockets());
+            $this->assertSame([], array_intersect($worker['sockets'], $this->t->templateSockets()), 'no socket of the template, its channel to the master included, reaches the worker');
+        }
     }
 
     public function test_the_template_relays_a_signal_to_its_worker(): void

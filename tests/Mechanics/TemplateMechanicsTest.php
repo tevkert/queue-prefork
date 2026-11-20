@@ -83,6 +83,10 @@ class TemplateMechanicsTest extends TestCase
             $this->assertStringContainsString('horizon:work redis --supervisor=test:fake', $worker['title']);
             $this->assertTrue($worker['opcache'], 'children share the template\'s opcache');
             $this->assertTrue($worker['stdin_ok'], 'stdio stays valid in children');
+
+            if (PHP_OS_FAMILY === 'Linux') {
+                $this->assertSame([], array_intersect($worker['sockets'], $this->t->templateSockets()), 'no socket of the template reaches its fork servers\' workers');
+            }
         }
 
         $this->assertNotSame($workers[0]['mt_rand'], $workers[1]['mt_rand'], 'mt_rand is reseeded per child');

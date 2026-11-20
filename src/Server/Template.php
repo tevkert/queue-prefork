@@ -2,6 +2,7 @@
 
 namespace Tevkert\QueuePrefork\Server;
 
+use FFI;
 use Tevkert\QueuePrefork\MasterHandoff;
 use Tevkert\QueuePrefork\Preflight;
 use Tevkert\QueuePrefork\Runtime;
@@ -97,6 +98,7 @@ final class Template
                 RoleGuard::exitServer(78);
             }
 
+            self::closeInherited(3);
             $control->send(self::ready(getmypid(), Identity::startTime(getmypid()), $reasons));
 
             return $job = (new self($control))->serve();
@@ -117,6 +119,23 @@ final class Template
             if ($job === null && Runtime::isServer()) {
                 RoleGuard::exitServer(70);
             }
+        }
+    }
+
+    /**
+     * The master's socket arrives as fd 3, and php://fd/3 is a duplicate of it: every child forked from here
+     * would keep fd 3 itself, the master's channel, for its whole life. PHP closes a descriptor only through a
+     * stream of its own, so this takes FFI; without it fd 3 stays open, unused.
+     */
+    private static function closeInherited(int $fd): void
+    {
+        if (! extension_loaded('ffi')) {
+            return;
+        }
+
+        try {
+            FFI::cdef('int close(int fd);')->close($fd);
+        } catch (Throwable) {
         }
     }
 
