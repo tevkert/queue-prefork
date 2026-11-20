@@ -330,13 +330,17 @@ class ForkedProcess extends Process
     public function signal(int $signal): static
     {
         $terminating = in_array($signal, [SIGTERM, SIGKILL, SIGINT, SIGQUIT], true);
+        $pauseState = $signal === SIGUSR2 || $signal === SIGCONT;
+
+        // The latest pause or continue, whatever the state: a restart of this handle starts in it.
+        if ($pauseState) {
+            $this->desiredPaused = $signal === SIGUSR2;
+        }
 
         if ($this->state === 'pending') {
             if ($terminating) {
                 $this->cancel(128 + $signal);
-            } elseif ($signal === SIGUSR2 || $signal === SIGCONT) {
-                $this->desiredPaused = $signal === SIGUSR2;
-            } else {
+            } elseif (! $pauseState) {
                 $this->queued[] = $signal;
             }
 
@@ -352,8 +356,7 @@ class ForkedProcess extends Process
         }
 
         // A worker's handlers exist only from its first loop ("ready"): until then, carry the pause state.
-        if ($this->role === 'worker' && ! $this->isReady && ($signal === SIGUSR2 || $signal === SIGCONT)) {
-            $this->desiredPaused = $signal === SIGUSR2;
+        if ($this->role === 'worker' && ! $this->isReady && $pauseState) {
             $this->broker->send(['t' => 'pause_state', 'id' => $this->id, 'paused' => $this->desiredPaused]);
 
             return $this;
