@@ -87,6 +87,20 @@ final class TemplateHarness
         ]);
     }
 
+    /** A worker for a master that runs its supervisors in its own process: the template forks it directly. */
+    public function spawnWorker(string $id, string $options, string $command = 'horizon:work'): void
+    {
+        $worker = dirname(__DIR__).'/Fixtures/fake-worker.php';
+        $this->channel->send([
+            't' => 'spawn',
+            'id' => $id,
+            'role' => 'worker',
+            'cmd' => "exec php {$worker} {$command} redis --supervisor=test:inline {$options}",
+            'cwd' => dirname(__DIR__, 2),
+            'env' => ['HP_TEST_OUT' => $this->out, 'HP_TEST_WORKER_ENV' => 'from-master'] + getenv(),
+        ]);
+    }
+
     /** Waits for the next message of the given type (others are kept in $seen). */
     public function await(string $type, float $timeout = 10, ?string $id = null): ?array
     {

@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+- **Supervisors inside the master:** an app that runs Horizon's supervisors in the master process can have the template fork their workers directly (`horizon_inline`, `Master::start()`, `ForksWorkersFromTemplate`). The template's worker handling is shared with the fork servers (`WorkerSet`), and the template TERMs the workers it forked when its master is gone. A worker the template cannot fork turns its supervisor stock, and an exec'd worker takes its place.
+
 ## [1.1.2] - 2026-11-20
 
 - **Stack traces in Flare, Sentry and Nightwatch:** a forked worker's stack trace ends in the launcher the template was started from, not in `artisan`. The launcher was a copy outside `vendor/`, so error trackers counted it as the app's own code. Flare drops every frame above the first frame of the app's code, so for a job failing in vendor code (a package's job, for example) only the launcher was left. Sentry marked it as the app's code, and Nightwatch placed such exceptions there. Templates now start through a link to the package's own `bin/template.php`, so traces name it in `vendor/`, and error trackers see the trace as in stock. Reported by Funsho Arashi (#5).

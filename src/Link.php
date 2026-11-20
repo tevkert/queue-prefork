@@ -2,6 +2,7 @@
 
 namespace Tevkert\QueuePrefork;
 
+use Tevkert\QueuePrefork\Client\Breaker;
 use Tevkert\QueuePrefork\Client\Broker;
 use Tevkert\QueuePrefork\Client\ForkedProcess;
 use Tevkert\QueuePrefork\Client\Report;
@@ -19,8 +20,7 @@ final class Link
 
     public static ?PreforkSupervisor $supervisor = null;
 
-    /** @var list<float> */
-    private static array $earlyExits = [];
+    private static ?Breaker $breaker = null;
 
     private static bool $ending = false;
 
@@ -73,24 +73,10 @@ final class Link
         exit(1);
     }
 
-    /** Breaker: only workers that never reached their first loop, and weren't stopped by us, count. */
+    /** The unit's crash breaker (Client\Breaker): tripped, the unit ends and its supervisor runs stock. */
     public static function workerExited(ForkedProcess $process, int $status, bool $wasReady): void
     {
-        if ($wasReady || $status === 0 || $process->parentSignalled || in_array($status, [137, 75, 72], true)) {
-            return;
-        }
-
-        $now = microtime(true);
-
-        if ($now - $process->spawnedAt > 120) {
-            return;
-        }
-
-        $window = (float) Runtime::config('breaker_window', 300);
-        self::$earlyExits = array_values(array_filter(self::$earlyExits, fn (float $at) => $now - $at < $window));
-        self::$earlyExits[] = $now;
-
-        if (count(self::$earlyExits) >= (int) Runtime::config('breaker_exits', 5)) {
+        if ((self::$breaker ??= new Breaker)->trips($process, $status, $wasReady)) {
             Report::event('BreakerTripped', ['scope' => 'unit', 'status' => $status]);
 
             try {

@@ -85,6 +85,27 @@ class ForkedProcessTest extends TestCase
         $this->assertSame(['t' => 'admit', 'id' => $spawn['id'], 'paused' => true], $this->expect('admit'));
     }
 
+    public function test_a_continue_after_ready_reaches_the_next_run(): void
+    {
+        $worker = $this->worker();
+        $worker->start();
+        $first = $this->expect('spawn');
+
+        $worker->signal(SIGUSR2);
+        $this->reply(['t' => 'spawned', 'id' => $first['id'], 'pid' => getmypid(), 'start' => Identity::startTime(getmypid())]);
+        $this->assertTrue($this->expect('admit')['paused']);
+        $this->reply(['t' => 'ready', 'id' => $first['id']]);
+
+        $worker->signal(SIGCONT);
+        $this->reply(['t' => 'exited', 'id' => $first['id'], 'status' => 0, 'ready' => true]);
+
+        // Horizon restarts a worker only while its pool works: the new one must not start paused.
+        $worker->start();
+        $second = $this->expect('spawn');
+        $this->reply(['t' => 'spawned', 'id' => $second['id'], 'pid' => getmypid(), 'start' => Identity::startTime(getmypid())]);
+        $this->assertSame(['t' => 'admit', 'id' => $second['id'], 'paused' => false], $this->expect('admit'));
+    }
+
     public function test_a_prompt_reply_is_admitted_within_start(): void
     {
         $server = pcntl_fork();

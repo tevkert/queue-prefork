@@ -67,11 +67,19 @@ final class Wiring
             return;
         }
 
-        $app->bind(HorizonCommand::class, PreforkHorizonCommand::class);
+        if (! self::inline($app)) {
+            $app->bind(HorizonCommand::class, PreforkHorizonCommand::class);
+        }
+    }
+
+    /** Supervisors inside the master: the app's own horizon command starts Master, so it must stay the app's. */
+    private static function inline(Application $app): bool
+    {
+        return (bool) $app['config']->get('queue-prefork.horizon_inline', false);
     }
 
     /** Why Horizon runs stock: an off switch (environment, .env or file), the runtime switch or the config. */
-    private static function horizonOff(Application $app): ?string
+    public static function horizonOff(Application $app): ?string
     {
         $off = Switches::off(base_path(), 'horizon');
 
@@ -187,7 +195,11 @@ final class Wiring
             }
 
             $app->singleton(Master::class);
-            $app->bind(HorizonCommand::class, PreforkHorizonCommand::class);
+
+            if (! self::inline($app)) {
+                $app->bind(HorizonCommand::class, PreforkHorizonCommand::class);
+            }
+
             self::whenCommandEnds($app, fn () => RoleGuard::armWatchdog());
             $app['events']->listen(MasterSupervisorLooped::class, fn () => $app->make(Master::class)->watchHost());
         } catch (Throwable $e) {

@@ -61,6 +61,9 @@ final class Template
     /** @var array<int, string> pid => unit id */
     private array $byPid = [];
 
+    /** Workers forked for a master that runs its supervisors in its own process (`role: worker` spawns). */
+    private WorkerSet $workers;
+
     private float $lastOpcacheReport;
 
     public static function main(): ChildJob
@@ -318,6 +321,7 @@ final class Template
         }
 
         $this->lastOpcacheReport = microtime(true);
+        $this->workers = new WorkerSet(fn (array $message) => $this->control->send($message));
     }
 
     private function hosting(): bool
@@ -354,11 +358,13 @@ final class Template
                 $unit['channel']->flush();
             }
 
+            $this->workers->readReady();
             $this->control->flush();
             $this->reap();
 
             // A host ends when it reaps its master (reap()); a spawned template when its master is gone.
             if (! $this->hosting() && ($this->control->eof || ! $this->masterAlive())) {
+                $this->stopWorkers();
                 RoleGuard::exitServer(0);
             }
 
@@ -397,6 +403,14 @@ final class Template
             }
         }
 
+        foreach ($this->workers->channels() as $channel) {
+            $read[] = $channel->stream();
+
+            if ($channel->wantsWrite()) {
+                $write[] = $channel->stream();
+            }
+        }
+
         if ($read === [] && $write === []) {
             usleep(200000);
 
@@ -425,17 +439,32 @@ final class Template
 
         switch ($message['t'] ?? null) {
             case 'spawn':
-                return $this->forkUnit($message);
+                return ($message['role'] ?? 'unit') === 'worker' ? $this->forkWorker($message) : $this->forkUnit($message);
 
             case 'admit':
+                if ($this->workers->has($id)) {
+                    $this->workers->admit($id, (bool) ($message['paused'] ?? false));
+                } elseif (isset($this->units[$id])) {
+                    $this->units[$id]['channel']->send(['t' => 'admit', 'id' => $id]);
+                }
+                break;
+
+            case 'pause_state':
+                $this->workers->pauseState($id, (bool) ($message['paused'] ?? false));
+                break;
+
             case 'cancel':
-                if (isset($this->units[$id])) {
-                    $this->units[$id]['channel']->send(['t' => $message['t'], 'id' => $id]);
+                if ($this->workers->has($id)) {
+                    $this->workers->cancel($id);
+                } elseif (isset($this->units[$id])) {
+                    $this->units[$id]['channel']->send(['t' => 'cancel', 'id' => $id]);
                 }
                 break;
 
             case 'signal':
-                $delivered = $this->signalUnit($id, (int) $message['sig'], ($message['target'] ?? 'one') === 'both');
+                $delivered = $this->workers->has($id)
+                    ? $this->workers->signal($id, (int) $message['sig'])
+                    : $this->signalUnit($id, (int) $message['sig'], ($message['target'] ?? 'one') === 'both');
                 $this->control->send(['t' => 'signalled', 'id' => $id, 'delivered' => $delivered]);
                 break;
 
@@ -525,6 +554,10 @@ final class Template
                 $unit['channel']->close();
             }
 
+            foreach ($this->workers->channels() as $channel) {
+                $channel->close();
+            }
+
             pcntl_sigprocmask(SIG_SETMASK, $previous);
 
             return (new UnitServer(new Channel($pair[1]), $message, $command))->serve();
@@ -551,6 +584,30 @@ final class Template
         pcntl_sigprocmask(SIG_SETMASK, $previous);
 
         return null;
+    }
+
+    /** A worker for a master whose supervisors run in its own process: forked here, with no fork server between. */
+    private function forkWorker(array $message): ?ChildJob
+    {
+        $close = [$this->control];
+
+        foreach ($this->units as $unit) {
+            $close[] = $unit['channel'];
+        }
+
+        // A relayed signal arriving mid-fork stays pending until the child has reset its handlers.
+        return $this->workers->fork($message, (string) getcwd(), [SIGCHLD, ...self::RELAY], $close);
+    }
+
+    /**
+     * The workers this template forked outlive it otherwise: no supervisor loop is left to stop them.
+     * TERM lets each finish its current job, as a stock supervisor's terminate does.
+     */
+    private function stopWorkers(): void
+    {
+        foreach ($this->workers->pids() as $pid) {
+            posix_kill($pid, SIGTERM);
+        }
     }
 
     private function onUnitMessage(string $id, array $message): void
@@ -582,6 +639,10 @@ final class Template
                 $this->masterExited($raw); // its units drain on their own, as under a stock master
             }
 
+            if ($this->workers->reaped($pid, Signals::status($raw))) {
+                continue;
+            }
+
             $id = $this->byPid[$pid] ?? null;
             unset($this->byPid[$pid]);
 
@@ -604,6 +665,8 @@ final class Template
      */
     private function masterExited(int $raw): never
     {
+        $this->stopWorkers();
+
         if ($this->stockAfterMaster === null || ! pcntl_wifexited($raw) || pcntl_wexitstatus($raw) !== 0) {
             self::exitLike($raw);
         }

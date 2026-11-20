@@ -47,11 +47,7 @@ final class UnitServer
     /** @var list<int> relays waiting for "armed" */
     private array $queuedRelays = [];
 
-    /** @var array<string, array{pid: int, start: ?string, channel: ?Channel, admitted: bool, ready: bool}> */
-    private array $workers = [];
-
-    /** @var array<int, string> */
-    private array $byPid = [];
+    private WorkerSet $workers;
 
     private float $helloElapsed = 0.0;
 
@@ -69,6 +65,7 @@ final class UnitServer
         $this->env = is_array($spawn['env'] ?? null) ? $spawn['env'] : [];
         $this->prepend = is_string($spawn['prepend'] ?? null) ? $spawn['prepend'] : null;
         $this->lastTick = microtime(true);
+        $this->workers = new WorkerSet(fn (array $message) => $this->loop?->send($message));
     }
 
     public function serve(): ChildJob
@@ -164,7 +161,7 @@ final class UnitServer
             $this->loop->flush();
         }
 
-        $this->readWorkers();
+        $this->workers->readReady();
         $this->reap();
         $this->watchMaster();
         $this->watchHello();
@@ -196,30 +193,6 @@ final class UnitServer
         @stream_select($read, $write, $except, 1);
     }
 
-    /** A worker's startup channel carries only its `ready`; it is closed as soon as that arrived. */
-    private function readWorkers(): void
-    {
-        foreach ($this->workers as $id => $worker) {
-            if ($worker['channel'] === null) {
-                continue;
-            }
-
-            foreach ($worker['channel']->receive() as $message) {
-                if (($message['t'] ?? null) === 'ready') {
-                    $this->workers[$id]['ready'] = true;
-                    $this->loop?->send(['t' => 'ready', 'id' => $id]);
-                }
-            }
-
-            $worker['channel']->flush();
-
-            if ($this->workers[$id]['ready'] || $worker['channel']->eof) {
-                $worker['channel']->close();
-                $this->workers[$id]['channel'] = null;
-            }
-        }
-    }
-
     /** @return list<Channel> */
     private function channels(): array
     {
@@ -233,13 +206,7 @@ final class UnitServer
             $channels[] = $this->loop;
         }
 
-        foreach ($this->workers as $worker) {
-            if ($worker['channel'] !== null && $worker['channel']->isOpen()) {
-                $channels[] = $worker['channel'];
-            }
-        }
-
-        return $channels;
+        return [...$channels, ...$this->workers->channels()];
     }
 
     private function onUp(array $message): void
@@ -278,29 +245,28 @@ final class UnitServer
                 break;
 
             case 'spawn':
-                return $this->forkWorker($message);
+                return $this->workers->fork(
+                    $message,
+                    $this->cwd,
+                    array_merge(self::RELAY, [SIGCHLD]),
+                    [$this->up, $this->loop],
+                    $this->masterGone ? 'master gone' : null,
+                );
 
             case 'admit':
-                if (isset($this->workers[$id]) && $this->workers[$id]['channel'] !== null) {
-                    $this->workers[$id]['admitted'] = true;
-                    $this->workers[$id]['channel']->send(['t' => 'admit', 'paused' => (bool) ($message['paused'] ?? false)]);
-                }
+                $this->workers->admit($id, (bool) ($message['paused'] ?? false));
                 break;
 
             case 'pause_state':
-                if (isset($this->workers[$id]) && $this->workers[$id]['channel'] !== null && ! $this->workers[$id]['ready']) {
-                    $this->workers[$id]['channel']->send(['t' => 'pause_state', 'paused' => (bool) ($message['paused'] ?? false)]);
-                }
+                $this->workers->pauseState($id, (bool) ($message['paused'] ?? false));
                 break;
 
             case 'cancel':
-                if (isset($this->workers[$id]) && ! $this->workers[$id]['admitted']) {
-                    posix_kill($this->workers[$id]['pid'], SIGKILL);
-                }
+                $this->workers->cancel($id);
                 break;
 
             case 'signal':
-                $delivered = isset($this->workers[$id]) && posix_kill($this->workers[$id]['pid'], (int) $message['sig']);
+                $delivered = $this->workers->signal($id, (int) $message['sig']);
                 $this->loop?->send(['t' => 'signalled', 'id' => $id, 'delivered' => $delivered]);
                 break;
 
@@ -308,69 +274,6 @@ final class UnitServer
                 $this->loop?->send(['t' => 'pong', 'id' => $id]);
                 break;
         }
-
-        return null;
-    }
-
-    private function forkWorker(array $message): ?ChildJob
-    {
-        $id = (string) $message['id'];
-
-        try {
-            $command = CommandLine::parse((string) $message['cmd'], ['horizon:work']);
-        } catch (Throwable $e) {
-            $this->loop?->send(['t' => 'spawn_failed', 'id' => $id, 'reason' => $e->getMessage()]);
-
-            return null;
-        }
-
-        if ($this->masterGone) {
-            $this->loop?->send(['t' => 'spawn_failed', 'id' => $id, 'reason' => 'master gone']);
-
-            return null;
-        }
-
-        $cwd = (string) ($message['cwd'] ?? $this->cwd);
-        $env = is_array($message['env'] ?? null) ? $message['env'] : [];
-        $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-        pcntl_sigprocmask(SIG_BLOCK, array_merge(self::RELAY, [SIGCHLD]), $previous);
-
-        try {
-            $pid = Process::fork();
-        } catch (Throwable) {
-            $pid = -1;
-        }
-
-        if ($pid === 0) {
-            @fclose($pair[0]);
-            $close = [$this->up, $this->loop];
-
-            foreach ($this->workers as $worker) {
-                $close[] = $worker['channel'];
-            }
-
-            $prepend = is_string($message['prepend'] ?? null) ? $message['prepend'] : null;
-
-            return ChildRoutine::become('worker', $pair[1], $close, $command, $cwd, $env, $id, prepend: $prepend);
-        }
-
-        @fclose($pair[1]);
-
-        if ($pid < 0) {
-            @fclose($pair[0]);
-            pcntl_sigprocmask(SIG_SETMASK, $previous);
-            $this->loop?->send(['t' => 'spawn_failed', 'id' => $id, 'reason' => 'fork failed']);
-
-            return null;
-        }
-
-        $start = Identity::startTime($pid);
-        $this->workers[$id] = [
-            'pid' => $pid, 'start' => $start, 'channel' => new Channel($pair[0]), 'admitted' => false, 'ready' => false,
-        ];
-        $this->byPid[$pid] = $id;
-        pcntl_sigprocmask(SIG_SETMASK, $previous);
-        $this->loop?->send(['t' => 'spawned', 'id' => $id, 'pid' => $pid, 'start' => $start]);
 
         return null;
     }
@@ -406,19 +309,7 @@ final class UnitServer
                 $this->finish($status);
             }
 
-            $id = $this->byPid[$pid] ?? null;
-            unset($this->byPid[$pid]);
-
-            if ($id === null) {
-                continue;
-            }
-
-            $worker = $this->workers[$id];
-            unset($this->workers[$id]);
-            $worker['channel']?->close();
-            $this->loop?->send([
-                't' => 'exited', 'id' => $id, 'pid' => $pid, 'start' => $worker['start'], 'status' => $status, 'ready' => $worker['ready'],
-            ]);
+            $this->workers->reaped($pid, $status);
         }
     }
 
